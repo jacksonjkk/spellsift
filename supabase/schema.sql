@@ -220,25 +220,31 @@ BEGIN
         RETURN jsonb_build_object('valid', false, 'error', 'Word cannot be empty.');
     END IF;
     
-    IF v_word_clean = v_base_clean THEN
-        RETURN jsonb_build_object('valid', false, 'error', 'Cannot submit the base word.');
-    END IF;
-    
-    IF NOT public.validate_word_letters(v_word_clean, v_base_clean) THEN
-        RETURN jsonb_build_object('valid', false, 'error', 'Word uses invalid letters.');
-    END IF;
-    
-    -- Check duplicates
+    -- Check duplicates first so we don't save multiple invalid duplicates
     IF EXISTS (
         SELECT 1 FROM public.submissions 
         WHERE room_id = p_room_id AND user_id = v_user_id AND lower(word) = v_word_clean
     ) THEN
         RETURN jsonb_build_object('valid', false, 'error', 'Word already submitted.');
     END IF;
+
+    IF v_word_clean = v_base_clean THEN
+        INSERT INTO public.submissions (room_id, user_id, word, is_valid)
+        VALUES (p_room_id, v_user_id, trim(p_word), false)
+        ON CONFLICT DO NOTHING;
+        RETURN jsonb_build_object('valid', false, 'error', 'Cannot submit the base word.');
+    END IF;
     
-    -- Insert Submission
+    IF NOT public.validate_word_letters(v_word_clean, v_base_clean) THEN
+        INSERT INTO public.submissions (room_id, user_id, word, is_valid)
+        VALUES (p_room_id, v_user_id, trim(p_word), false)
+        ON CONFLICT DO NOTHING;
+        RETURN jsonb_build_object('valid', false, 'error', 'Word uses invalid letters.');
+    END IF;
+    
+    -- Insert valid submission
     INSERT INTO public.submissions (room_id, user_id, word, is_valid)
-    VALUES (p_room_id, v_user_id, trim(p_word), v_is_valid);
+    VALUES (p_room_id, v_user_id, trim(p_word), true);
     
     -- Update Player Score (+1 point for valid word)
     UPDATE public.players

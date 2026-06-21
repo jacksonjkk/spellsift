@@ -5,7 +5,8 @@ import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { PageWrapper } from '../components/Layout/PageWrapper';
-import type { Submission } from '../types';
+import { ProfileModal } from '../components/Common/ProfileModal';
+import type { Submission, Profile } from '../types';
 
 interface ResultsProps {
   onNavigate: (page: string) => void;
@@ -17,6 +18,7 @@ export const Results: React.FC<ResultsProps> = ({ onNavigate }) => {
   
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [modalProfile, setModalProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
 
@@ -214,12 +216,17 @@ export const Results: React.FC<ResultsProps> = ({ onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <div style={{ fontWeight: 800, color: 'var(--color-text-muted)', width: '20px' }}>#{pos}</div>
-                    <img 
-                      src={u?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u?.username}`} 
-                      alt="Avatar" 
-                      className="avatar" 
-                      style={{ width: '32px', height: '32px' }}
-                    />
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); u && setModalProfile(u); }}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                    >
+                      <img 
+                        src={u?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u?.username}`} 
+                        alt="Avatar" 
+                        className="avatar hover:scale-110 transition-transform" 
+                        style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                      />
+                    </button>
                     <span style={{ fontWeight: 700 }}>{u?.username}</span>
                   </div>
 
@@ -303,6 +310,13 @@ export const Results: React.FC<ResultsProps> = ({ onNavigate }) => {
           <Home size={18} /> Leave & Go Home
         </button>
       </div>
+
+      {modalProfile && (
+        <ProfileModal 
+          profile={modalProfile} 
+          onClose={() => setModalProfile(null)} 
+        />
+      )}
     </PageWrapper>
   );
 };
