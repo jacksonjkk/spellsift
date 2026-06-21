@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useTimer } from '../hooks/useTimer';
 import { PageWrapper } from '../components/Layout/PageWrapper';
 import { validateWord } from '../utils/validation';
+import { ProfileModal } from '../components/Common/ProfileModal';
+import type { Profile } from '../types';
 
 interface GameProps {
   onNavigate: (page: string) => void;
@@ -14,7 +16,6 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
   const { 
     activeRoom, 
     players, 
-    submissions, 
     submitPlayerWord, 
     hostFinishGame,
     leaveActiveRoom
@@ -22,17 +23,41 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
   
   const { profile } = useAuth();
   
-  const [wordInput, setWordInput] = useState('');
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [shakeError, setShakeError] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [notepadText, setNotepadText] = useState('1. ');
+  const [isSubmittingAll, setIsSubmittingAll] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isHost = activeRoom?.host_id === profile?.id;
   const baseWord = activeRoom?.base_word || '';
 
   // Timer completion callback
   const handleTimeUp = async () => {
+    if (isSubmittingAll) return;
+    
+    // 1. Submit all words first
+    setIsSubmittingAll(true);
+    if (notepadText.trim()) {
+      const lines = notepadText.split('\n');
+      const wordsToSubmit = lines.map(line => {
+        // Strip out numbering like "1. ", "2.", etc. and trim spaces
+        return line.replace(/^\d+\.\s*/, '').trim().toUpperCase();
+      }).filter(word => word.length > 0);
+
+      // Submit all valid words one by one
+      for (const word of wordsToSubmit) {
+        try {
+          // We can skip client-side validation here since backend does it, 
+          // or we can just send it. The backend RPC handles validation.
+          await submitPlayerWord(word);
+        } catch (err) {
+          console.error('Submission failed for', word, err);
+        }
+      }
+    }
+    setIsSubmittingAll(false);
+
+    // 2. Then host finishes the game
     if (isHost && activeRoom) {
       try {
         await hostFinishGame();
@@ -50,53 +75,45 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
 
   const disableInputs = timeLeft <= 0;
 
-  // Auto-transition when game state is updated to ended
+  // Auto-transition when game state is updated to ended, but ONLY if we have finished submitting
   useEffect(() => {
-    if (activeRoom && activeRoom.status === 'ended') {
+    if (activeRoom && activeRoom.status === 'ended' && !isSubmittingAll) {
       onNavigate('results');
     }
-  }, [activeRoom?.status, onNavigate]);
+  }, [activeRoom?.status, isSubmittingAll, onNavigate]);
 
-  // Handle word form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (disableInputs || isSubmitting) return;
-
-    const word = wordInput.trim().toUpperCase();
-    setSubmitError(null);
-    setShakeError(false);
-
-    if (!word) return;
-
-    // Client-side quick check (includes letter validation and local duplicates check)
-    const localExistingWords = submissions.map(s => s.word);
-    const clientValidationResult = validateWord(word, baseWord, localExistingWords);
-    
-    if (!clientValidationResult.isValid) {
-      setSubmitError(clientValidationResult.error || 'Invalid word');
-      setShakeError(true);
-      // Reset shake after animation completes
-      setTimeout(() => setShakeError(false), 500);
-      setWordInput('');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const result = await submitPlayerWord(word);
-      if (!result.valid) {
-        setSubmitError(result.error || 'Invalid word');
-        setShakeError(true);
-        setTimeout(() => setShakeError(false), 500);
-      } else {
-        setWordInput('');
+  // Handle auto-numbering
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const textarea = e.currentTarget;
+      const cursorPosition = textarea.selectionStart;
+      const textBefore = notepadText.substring(0, cursorPosition);
+      const textAfter = notepadText.substring(cursorPosition);
+      
+      const lines = textBefore.split('\n');
+      const currentLine = lines[lines.length - 1];
+      const hasWord = currentLine.replace(/^\d+\.\s*/, '').trim().length > 0;
+      
+      if (!hasWord) {
+        // Do nothing if they haven't typed a word
+        return;
       }
-    } catch (err: any) {
-      setSubmitError(err.message || 'Submission failed');
-    } finally {
-      setIsSubmitting(false);
-      // Keep input focused for quick typing
-      inputRef.current?.focus();
+      
+      const nextLineNum = lines.length + 1;
+      
+      const insertText = `\n${nextLineNum}. `;
+      
+      setNotepadText(textBefore + insertText + textAfter);
+      
+      // We need to set cursor position after render, so a small timeout is needed
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = cursorPosition + insertText.length;
+          textareaRef.current.selectionEnd = cursorPosition + insertText.length;
+          textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+        }
+      }, 0);
     }
   };
 
@@ -104,10 +121,6 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
 
   // Sorted leaderboard of other players in room
   const sortedLeaderboard = [...players].sort((a, b) => b.score - a.score);
-  
-  // Submissions lists split into Valid & Invalid
-  const validSubmissions = submissions.filter(s => s.is_valid);
-  const invalidSubmissions = submissions.filter(s => !s.is_valid);
 
   const handleAbort = async () => {
     if (window.confirm('Do you want to abandon this game? You will leave the room.')) {
@@ -175,81 +188,41 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Submission Panel */}
+          {/* Notepad Panel */}
           <div className="card card-glow-primary flex flex-col gap-4">
-            <h3 style={{ fontSize: '1.25rem' }}>Submit Formed Words</h3>
-            
-            <form onSubmit={handleSubmit} className="word-submit-form flex gap-2">
-              <div style={{ flex: 1, position: 'relative' }}>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  className={`input ${shakeError ? 'animate-shake input-error' : ''}`}
-                  placeholder={disableInputs ? 'Game locked!' : 'Type your word...'}
-                  value={wordInput}
-                  onChange={(e) => setWordInput(e.target.value.replace(/[^A-Za-z]/g, ''))}
-                  disabled={disableInputs || isSubmitting}
-                  style={{ fontSize: '1.25rem', letterSpacing: '0.05em' }}
-                  required
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="characters"
-                />
-              </div>
-              <button 
-                type="submit" 
-                className="btn btn-primary"
-                disabled={disableInputs || isSubmitting || !wordInput.trim()}
-                style={{ padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                <Send size={18} /> Submit
-              </button>
-            </form>
-
-            {submitError && (
-              <p style={{ color: 'var(--color-danger)', fontSize: '0.875rem', fontWeight: 500 }}>
-                ⚠️ {submitError}
-              </p>
-            )}
-          </div>
-
-          {/* Numbered accepted submissions */}
-          <div className="card">
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ListFilter size={18} style={{ color: 'var(--color-accent)' }} /> 
-              Submitted Words ({validSubmissions.length})
+            <h3 style={{ fontSize: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Notepad</span>
+              {isSubmittingAll && <span style={{ fontSize: '0.9rem', color: 'var(--color-warning)', animation: 'pulse 1s infinite' }}>Submitting Answers...</span>}
             </h3>
             
-            {validSubmissions.length === 0 ? (
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', fontStyle: 'italic', padding: '1rem 0' }}>
-                No words found yet. Speed is key!
-              </p>
-            ) : (
-              <ol className="submission-list">
-                {validSubmissions.map((submission, index) => (
-                  <li key={submission.id} className="submission-list-item animate-fade-in">
-                    <span className="submission-number">{index + 1}</span>
-                    <span className="submission-word">{submission.word}</span>
-                    <span className="badge badge-success">Accepted</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-
-            {invalidSubmissions.length > 0 && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <h4 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
-                  Invalid Attempts ({invalidSubmissions.length})
-                </h4>
-                <div className="word-chips-container" style={{ background: 'rgba(239, 68, 68, 0.02)', maxHeight: '100px' }}>
-                  {invalidSubmissions.map((s) => (
-                    <span key={s.id} className="word-chip invalid">
-                      {s.word}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div style={{ flex: 1, position: 'relative' }}>
+              <textarea
+                ref={textareaRef}
+                className="input"
+                placeholder="1. Type word here..."
+                value={notepadText}
+                onChange={(e) => setNotepadText(e.target.value.replace(/[^A-Za-z0-9.\s\n]/g, ''))}
+                onKeyDown={handleKeyDown}
+                disabled={disableInputs || isSubmittingAll}
+                style={{ 
+                  fontSize: '1.25rem', 
+                  letterSpacing: '0.05em',
+                  width: '100%',
+                  minHeight: '250px',
+                  resize: 'vertical',
+                  fontFamily: 'monospace',
+                  padding: '1rem',
+                  lineHeight: '1.5'
+                }}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="characters"
+              />
+            </div>
+            
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              Words will auto-submit when the timer runs out! Keep typing.
+            </p>
           </div>
         </div>
 
@@ -285,12 +258,17 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
                     >
                       #{position}
                     </div>
-                    <img 
-                      src={userProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userProfile?.username}`} 
-                      alt="Avatar" 
-                      className="avatar" 
-                      style={{ width: '30px', height: '30px' }}
-                    />
+                    <button 
+                      onClick={() => userProfile && setSelectedProfile(userProfile)}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                    >
+                      <img 
+                        src={userProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userProfile?.username}`} 
+                        alt="Avatar" 
+                        className="avatar hover:scale-110 transition-transform" 
+                        style={{ width: '30px', height: '30px', objectFit: 'cover' }}
+                      />
+                    </button>
                     <span style={{ fontWeight: 600, fontSize: '0.95rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '100px' }}>
                       {userProfile?.username}
                     </span>
@@ -308,6 +286,13 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+
+      {selectedProfile && (
+        <ProfileModal 
+          profile={selectedProfile} 
+          onClose={() => setSelectedProfile(null)} 
+        />
+      )}
     </PageWrapper>
   );
 };
