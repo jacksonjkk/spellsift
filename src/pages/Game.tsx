@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Clock, Award, Star, ListFilter } from 'lucide-react';
+import { Clock, Award, Star } from 'lucide-react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
 import { useTimer } from '../hooks/useTimer';
 import { PageWrapper } from '../components/Layout/PageWrapper';
-import { validateWord } from '../utils/validation';
 import { ProfileModal } from '../components/Common/ProfileModal';
 import type { Profile } from '../types';
 
