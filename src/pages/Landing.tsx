@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Zap, Award, User, Mail, Lock, Plus, LogIn } from 'lucide-react';
+import { Shield, Zap, Award, User, Mail, Lock, Plus, LogIn, Quote, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { PageWrapper } from '../components/Layout/PageWrapper';
 
@@ -15,6 +15,7 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [avatarSeed] = useState(() => Math.random().toString(36).substring(7));
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -161,7 +162,7 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
             </h2>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '1.1rem' }}>
               SpellSift is a fast-paced, real-time word creation competition. Join or create a room, 
-              sift through letters of the base word, and form as many words as you can in 60 seconds.
+              sift through letters of the base word, and form as many words as you can before time runs out.
             </p>
             
             {profile ? (
@@ -201,8 +202,24 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
               </div>
 
               {error && (
-                <div style={{ color: 'var(--color-danger)', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.75rem', borderRadius: 'var(--border-radius)', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                  {error}
+                <div
+                  role="alert"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.65rem',
+                    color: 'var(--color-text-primary)',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    padding: '0.85rem 0.95rem',
+                    borderRadius: 'var(--border-radius)',
+                    marginBottom: '1rem',
+                    fontSize: '0.9rem',
+                    lineHeight: 1.4
+                  }}
+                >
+                  <AlertCircle size={18} style={{ color: 'var(--color-danger)', flex: '0 0 auto', marginTop: '0.05rem' }} />
+                  <span>{error}</span>
                 </div>
               )}
 
@@ -255,16 +272,39 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
                     <div className="flex gap-2 items-center" style={{ position: 'relative' }}>
                       <Lock size={16} style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)' }} />
                       <input
-                        type="password"
+                        type={showPassword ? 'text' : 'password'}
                         className="input"
                         placeholder="••••••••"
-                        style={{ paddingLeft: '2.5rem' }}
+                        style={{ paddingLeft: '2.5rem', paddingRight: '2.75rem' }}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         disabled={submitting}
                         minLength={6}
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        disabled={submitting}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          width: '34px',
+                          height: '34px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: 'none',
+                          borderRadius: '50%',
+                          background: 'transparent',
+                          color: 'var(--color-text-muted)',
+                          cursor: submitting ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
                   </div>
 
@@ -320,8 +360,51 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
         </div>
       </section>
 
+      {/* About Section */}
+      {!profile && (
+        <section className="py-12" style={{ borderTop: '1px solid var(--color-card-border)', marginTop: '2rem' }}>
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 gap-8"
+            style={{ alignItems: 'center', maxWidth: '1000px', margin: '0 auto' }}
+          >
+            <div className="text-left">
+              <p style={{ color: 'var(--color-accent)', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                About SpellSift
+              </p>
+              <h2 style={{ fontSize: '2rem', lineHeight: 1.2, marginBottom: '1rem' }}>
+                A word game born from UNCLE TAYE's idea.
+              </h2>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: '1.05rem', lineHeight: 1.7 }}>
+                SpellSift started as a simple challenge: take one base word, race the clock,
+                and see who can pull the smartest words out of the same letters. The app keeps
+                that original spark while turning it into a live multiplayer competition.
+              </p>
+            </div>
+
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.08), rgba(109, 40, 217, 0.12))',
+                border: '1px solid var(--color-card-border)',
+                borderRadius: 'var(--border-radius)',
+                padding: '1.5rem',
+                boxShadow: 'var(--shadow-glass)'
+              }}
+            >
+              <Quote size={34} style={{ color: 'var(--color-accent)', marginBottom: '1rem' }} />
+              <p style={{ color: 'var(--color-text-primary)', fontSize: '1.2rem', lineHeight: 1.6, fontWeight: 600, marginBottom: '1rem' }}>
+                "I wanted SpellSift to feel quick, competitive, and a little chaotic: one word,
+                one ticking clock, and everyone trying to spot the word nobody else saw."
+              </p>
+              <p style={{ color: 'var(--color-text-secondary)', fontWeight: 700 }}>
+                UNCLE TAYE
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Features Section */}
-      <section className="py-12" style={{ borderTop: '1px solid var(--color-card-border)', marginTop: '2rem' }}>
+      <section className="py-12" style={{ borderTop: '1px solid var(--color-card-border)' }}>
         <h2 className="text-center" style={{ fontSize: '2rem', marginBottom: '3rem' }}>
           Game Features
         </h2>
@@ -374,7 +457,7 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
           <div className="text-center flex flex-col items-center gap-2">
             <div style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>3</div>
             <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Form Words</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Find as many words as possible using letters from the base word in 60s.</p>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Find as many words as possible using letters from the base word before the timer ends.</p>
           </div>
 
           <div className="text-center flex flex-col items-center gap-2">
