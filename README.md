@@ -1,7 +1,7 @@
 # SpellSift 🎮
 > **Tagline:** Find. Form. Win.
 
-SpellSift is a production-ready, real-time multiplayer word game built with **React**, **TypeScript**, **Vite**, **Pure CSS**, and **Supabase**. One host starts a room and provides a base word. Players have 60 seconds to form as many valid words as possible using only the letters from the base word. Live scoreboards and chat sync in real time!
+SpellSift is a production-ready, real-time multiplayer word game built with **React**, **TypeScript**, **Vite**, **Pure CSS**, and **Supabase**. One host starts a room, picks the round duration, and provides a base word. Players race the clock to form as many valid words as possible using only the letters from the base word. Live scoreboards and chat sync in real time!
 
 ---
 

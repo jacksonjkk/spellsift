@@ -132,7 +132,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [fetchUserProfile, user]);
 
   const signIn = async (email: string, password: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) {
@@ -140,7 +139,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           throw new Error('Confirm your email address before logging in. Check your inbox for the confirmation link.');
         }
         if (error.message.includes('Invalid login credentials')) {
-          throw new Error('Email or password is incorrect. If this account was removed during the database repair, create it again.');
+          throw new Error("We couldn't sign you in. Check your email and password, then try again.");
         }
         if (error.status === 429) {
           throw new Error('Too many login attempts. Please wait a few minutes before trying again.');
@@ -154,13 +153,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!signedInUser) {
         setProfile(null);
       }
-    } finally {
+    } catch (err) {
       setLoading(false);
+      throw err;
     }
   };
 
   const signUp = async (email: string, password: string, username: string, avatarUrl?: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
@@ -191,14 +190,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!data.session) {
         setUser(null);
         setProfile(null);
-        setLoading(false);
         return { requiresEmailConfirmation: true };
       }
 
       setUser(data.session.user);
       return { requiresEmailConfirmation: false };
-    } finally {
+    } catch (err) {
       setLoading(false);
+      throw err;
     }
   };
 
