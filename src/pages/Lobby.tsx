@@ -3,7 +3,6 @@ import { Copy, Check, Users, Shield, Play, LogOut, CheckCircle } from 'lucide-re
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
 import { PageWrapper } from '../components/Layout/PageWrapper';
-import { Chat } from '../components/Game/Chat';
 
 interface LobbyProps {
   onNavigate: (page: string) => void;
@@ -200,8 +199,6 @@ export const Lobby: React.FC<LobbyProps> = ({ onNavigate }) => {
         </div>
 
       </div>
-
-      <Chat />
 
       {/* Start Game Modal (Host Only) */}
       {showStartModal && (

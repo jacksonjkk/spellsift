@@ -8,6 +8,7 @@ import { useAuth } from './hooks/useAuth';
 import { Navbar } from './components/Layout/Navbar';
 import { Footer } from './components/Layout/Footer';
 import { LoadingSpinner } from './components/Common/LoadingSpinner';
+import { Chat } from './components/Game/Chat';
 
 // Pages
 import { Landing } from './pages/Landing';
@@ -39,6 +40,7 @@ const AppContent: React.FC = () => {
   const { loading } = useAuth();
   const { activeRoom, loadingRoom } = useGame();
   const [currentPage, setCurrentPage] = useState<string>(getInitialPage);
+  const showRoomChat = Boolean(activeRoom) && ROOM_PAGES.includes(currentPage);
 
   const resetScroll = useCallback(() => {
     window.scrollTo(0, 0);
@@ -124,6 +126,7 @@ const AppContent: React.FC = () => {
     <div className="app-container">
       <Navbar onNavigate={navigateTo} currentPage={currentPage} />
       <div className="main-content" key={currentPage}>{renderPage()}</div>
+      {showRoomChat && <Chat />}
       <Footer />
     </div>
   );

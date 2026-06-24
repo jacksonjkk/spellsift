@@ -471,6 +471,22 @@
   overflow-wrap: anywhere;
 }
 
+.chat-receipt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  color: rgba(221, 214, 254, 0.76);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chat-receipt-seen {
+  color: var(--color-accent);
+}
+
 .chat-system {
   color: var(--color-warning);
   font-style: italic;

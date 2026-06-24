@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageCircle, Send, X } from 'lucide-react';
+import { Check, CheckCheck, MessageCircle, Send, X } from 'lucide-react';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../hooks/useAuth';
 
 export const Chat: React.FC = () => {
-  const { chats, sendRoomChat } = useGame();
+  const { chats, players, chatReceipts, sendRoomChat, markRoomChatsSeen } = useGame();
   const { profile } = useAuth();
   const [messageText, setMessageText] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
@@ -36,6 +36,36 @@ export const Chat: React.FC = () => {
       messageBox.scrollTo({ top: messageBox.scrollHeight, behavior: chats.length > 0 ? 'smooth' : 'auto' });
     }
   }, [chats, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      void markRoomChatsSeen();
+    }
+  }, [chats, isOpen, markRoomChatsSeen]);
+
+  const getOwnMessageStatus = (messageId: string) => {
+    const recipientIds = players
+      .map(player => player.user_id)
+      .filter(userId => userId !== profile?.id);
+    const recipientReceipts = chatReceipts.filter(receipt => (
+      receipt.message_id === messageId && recipientIds.includes(receipt.user_id)
+    ));
+
+    if (
+      recipientIds.length > 0
+      && recipientIds.every(userId => recipientReceipts.some(receipt => (
+        receipt.user_id === userId && receipt.seen_at
+      )))
+    ) {
+      return 'Seen';
+    }
+
+    if (recipientReceipts.length > 0) {
+      return 'Received';
+    }
+
+    return 'Sent';
+  };
 
   const toggleChat = () => {
     setIsOpen(open => {
@@ -68,7 +98,7 @@ export const Chat: React.FC = () => {
         type="button"
         onClick={toggleChat}
         className={`chat-launcher ${unreadCount > 0 ? 'has-unread' : ''}`}
-        aria-label={isOpen ? 'Close lobby chat' : `Open lobby chat${unreadCount > 0 ? `, ${unreadCount} unread messages` : ''}`}
+        aria-label={isOpen ? 'Close room chat' : `Open room chat${unreadCount > 0 ? `, ${unreadCount} unread messages` : ''}`}
         aria-expanded={isOpen}
       >
         {isOpen ? <X size={25} /> : <MessageCircle size={25} />}
@@ -80,10 +110,10 @@ export const Chat: React.FC = () => {
       </button>
 
       {isOpen && (
-        <section className="card chat-container chat-drawer flex flex-col gap-3" role="dialog" aria-label="Lobby chat">
+        <section className="card chat-container chat-drawer flex flex-col gap-3" role="dialog" aria-label="Room chat">
           <div className="chat-drawer-header">
             <div>
-              <h3>Lobby Chat</h3>
+              <h3>Room Chat</h3>
               <p>{chats.length} {chats.length === 1 ? 'message' : 'messages'}</p>
             </div>
             <button type="button" onClick={toggleChat} className="chat-close-button" aria-label="Close chat">
@@ -100,10 +130,17 @@ export const Chat: React.FC = () => {
             ) : (
               chats.map((c) => {
                 const isMe = c.user_id === profile?.id;
+                const status = isMe ? getOwnMessageStatus(c.id) : null;
                 return (
                   <div key={c.id} className={`chat-msg ${isMe ? 'chat-msg-own' : 'chat-msg-received'}`}>
                     <span className="chat-author">{isMe ? 'You' : c.username}</span>
                     <span className="chat-text">{c.message}</span>
+                    {status && (
+                      <span className={`chat-receipt chat-receipt-${status.toLowerCase()}`}>
+                        {status === 'Sent' ? <Check size={12} /> : <CheckCheck size={12} />}
+                        {status}
+                      </span>
+                    )}
                   </div>
                 );
               })
