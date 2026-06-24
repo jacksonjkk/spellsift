@@ -255,8 +255,47 @@
   box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
 }
 
-.notepad-base-word {
+.notepad-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 1.25rem;
+}
+
+.notepad-heading-base {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.notepad-heading-base span {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.notepad-heading-base strong {
+  min-width: 0;
+  color: var(--color-accent);
+  overflow-wrap: anywhere;
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.notepad-mobile-timer {
   display: none;
+}
+
+.notepad-submitting-label {
+  flex: 0 0 auto;
+  color: var(--color-warning);
+  font-size: 0.9rem;
+  animation: pulse 1s infinite;
 }
 
 /* In-game Chat Box */
@@ -656,33 +695,56 @@
     border-width: 1px !important;
   }
 
-  .notepad-base-word {
-    display: flex;
+  .notepad-heading {
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.7rem 0.85rem;
-    border: 1px solid rgba(34, 211, 238, 0.24);
-    border-radius: var(--border-radius-sm);
-    background: rgba(15, 23, 42, 0.7);
+    justify-content: flex-start;
+    gap: 0.55rem;
+    font-size: 1rem;
   }
 
-  .notepad-base-word span {
+  .notepad-mobile-timer {
+    display: inline-flex;
     flex: 0 0 auto;
-    color: var(--color-text-secondary);
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+    min-width: 4.25rem;
+    min-height: 2.05rem;
+    padding: 0.38rem 0.55rem;
+    border: 1px solid rgba(6, 182, 212, 0.34);
+    border-radius: var(--border-radius-sm);
+    background: rgba(6, 182, 212, 0.12);
+    color: var(--color-accent);
+    font-size: 0.9rem;
+    font-weight: 900;
+    line-height: 1;
   }
 
-  .notepad-base-word strong {
-    min-width: 0;
-    color: var(--color-accent);
-    overflow-wrap: anywhere;
+  .notepad-mobile-timer-danger {
+    border-color: rgba(239, 68, 68, 0.42);
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--color-danger);
+    animation: shake 0.5s infinite;
+  }
+
+  .notepad-heading-base {
+    flex-direction: column;
+    flex: 1 1 auto;
+    gap: 0.15rem;
+  }
+
+  .notepad-heading-base span {
+    font-size: 0.7rem;
+  }
+
+  .notepad-heading-base strong {
+    font-size: 1.15rem;
+  }
+
+  .notepad-submitting-label {
+    margin-left: auto;
     text-align: right;
-    font-size: 1.05rem;
-    font-weight: 900;
-    letter-spacing: 0.08em;
+    font-size: 0.82rem;
   }
 
   .word-submit-form {

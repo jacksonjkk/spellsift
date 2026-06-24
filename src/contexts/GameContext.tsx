@@ -7,6 +7,16 @@ import type { Room, Player, Submission, ChatMessage } from '../types';
 import { soundManager } from '../utils/sound';
 
 const ACTIVE_ROOM_STORAGE_KEY = 'spellsift.activeRoomId';
+const ROOM_RESTORE_TIMEOUT_MS = 12000;
+
+const timeoutAfter = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      window.setTimeout(() => resolve(fallback), ms);
+    })
+  ]);
+};
 
 interface GameContextType {
   activeRoom: Room | null;
@@ -88,7 +98,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    if (activeRoom) return;
+    if (activeRoom) {
+      setLoadingRoom(false);
+      return;
+    }
 
     const savedRoomId = window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY);
     if (!savedRoomId) {
@@ -101,12 +114,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const restoreActiveRoom = async () => {
       try {
-        const [room, isMember] = await Promise.all([
-          api.getRoomById(savedRoomId),
-          api.isPlayerInRoom(savedRoomId, user.id)
-        ]);
+        const restoredRoomState = await timeoutAfter(
+          Promise.all([
+            api.getRoomById(savedRoomId),
+            api.isPlayerInRoom(savedRoomId, user.id)
+          ]),
+          ROOM_RESTORE_TIMEOUT_MS,
+          null
+        );
 
         if (cancelled) return;
+
+        if (!restoredRoomState) {
+          console.warn('Timed out restoring active room. Clearing saved room.');
+          forgetActiveRoom();
+          setPlayers([]);
+          setSubmissions([]);
+          setChats([]);
+          return;
+        }
+
+        const [room, isMember] = restoredRoomState;
 
         if (!room || !isMember) {
           forgetActiveRoom();
@@ -117,7 +145,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         setActiveRoom(room);
-        await refreshRoomData(room.id);
+        setLoadingRoom(false);
+        await timeoutAfter(refreshRoomData(room.id), ROOM_RESTORE_TIMEOUT_MS, undefined);
       } catch (err) {
         console.error('Error restoring active room:', err);
         if (!cancelled) {

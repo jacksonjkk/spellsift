@@ -1,6 +1,6 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { User } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
 import supabase, { isSupabaseConfigured } from '../services/supabase';
 import { api } from '../services/api';
 import type { Profile } from '../types';
@@ -19,24 +19,36 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_SESSION_TIMEOUT_MS = 10000;
+const PROFILE_LOAD_TIMEOUT_MS = 12000;
+
+const timeoutAfter = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      window.setTimeout(() => resolve(fallback), ms);
+    })
+  ]);
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Load profile for authenticated user
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
-      const userProfile = await api.getProfile(userId);
-      setProfile(userProfile);
+      return await timeoutAfter(api.getProfile(userId), PROFILE_LOAD_TIMEOUT_MS, null);
     } catch (err) {
       console.error('Error fetching profile in AuthProvider:', err);
+      return null;
     }
-  };
+  }, []);
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchUserProfile(user.id);
+      setProfile(await fetchUserProfile(user.id));
     }
   };
 
@@ -47,53 +59,83 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    // 1. Check current session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchUserProfile(session.user.id);
-      } else {
+    let mounted = true;
+
+    const applySession = (session: Session | null) => {
+      const currentUser = session?.user ?? null;
+      if (!mounted) return;
+
+      setUser(currentUser);
+
+      if (!currentUser) {
         setProfile(null);
       }
-      setLoading(false);
-    }).catch(() => {
-      // If getSession fails (e.g. network error), stop loading
-      setLoading(false);
-    });
+    };
+
+    // 1. Check current session
+    timeoutAfter(supabase.auth.getSession(), AUTH_SESSION_TIMEOUT_MS, null)
+      .then((result) => {
+        applySession(result?.data.session ?? null);
+      })
+      .catch((err) => {
+        console.error('Error loading auth session:', err);
+        if (mounted) {
+          setUser(null);
+          setProfile(null);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
 
     // 2. Listen to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (currentUser) {
-        await fetchUserProfile(currentUser.id);
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        if (mounted) {
+          applySession(session);
+          setLoading(false);
+        }
+      }, 0);
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  // Sync profile when user changes
+  // Load the profile from a normal React effect, not inside Supabase's auth
+  // callback. Supabase warns that issuing Supabase calls from the callback can
+  // deadlock the client on some browsers.
   useEffect(() => {
-    if (user && profile && profile.id === user.id) {
-      setLoading(false);
-    } else if (!user) {
-      setLoading(false);
+    if (!user) {
+      setProfile(null);
+      return;
     }
-  }, [user, profile]);
+
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      const userProfile = await fetchUserProfile(user.id);
+      if (!cancelled) {
+        setProfile(userProfile);
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchUserProfile, user]);
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) {
-        setLoading(false);
         if (error.message.toLowerCase().includes('email not confirmed')) {
           throw new Error('Confirm your email address before logging in. Check your inbox for the confirmation link.');
         }
@@ -105,9 +147,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         throw error;
       }
-    } catch (err) {
+
+      const signedInUser = data.session?.user ?? data.user ?? null;
+      setUser(signedInUser);
+
+      if (!signedInUser) {
+        setProfile(null);
+      }
+    } finally {
       setLoading(false);
-      throw err;
     }
   };
 
@@ -148,7 +196,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       setUser(data.session.user);
-      await fetchUserProfile(data.session.user.id);
       return { requiresEmailConfirmation: false };
     } finally {
       setLoading(false);

@@ -219,15 +219,22 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
 
           {/* Notepad Panel */}
           <div className="card card-glow-primary flex flex-col gap-4">
-            <h3 style={{ fontSize: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Notepad</span>
-              {isSubmittingAll && <span style={{ fontSize: '0.9rem', color: 'var(--color-warning)', animation: 'pulse 1s infinite' }}>Submitting Answers...</span>}
+            <h3 className="notepad-heading">
+              {!isSubmittingAll && timeLeft > 0 && (
+                <span
+                  className={`notepad-mobile-timer ${timeLeft <= 10 ? 'notepad-mobile-timer-danger' : ''}`}
+                  aria-label={`Time remaining: ${formattedTime}`}
+                >
+                  <Clock size={15} />
+                  <span>{formattedTime}</span>
+                </span>
+              )}
+              <span className="notepad-heading-base" aria-label={`Base word: ${baseWord}`}>
+                <span>Base word</span>
+                <strong>{baseWord}</strong>
+              </span>
+              {isSubmittingAll && <span className="notepad-submitting-label">Submitting Answers...</span>}
             </h3>
-
-            <div className="notepad-base-word" aria-label={`Base word: ${baseWord}`}>
-              <span>Base word</span>
-              <strong>{baseWord}</strong>
-            </div>
             
             <div style={{ flex: 1, position: 'relative' }}>
               <textarea
