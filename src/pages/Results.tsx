@@ -3,6 +3,7 @@ import { Award, RotateCcw, Home, Sparkles, CheckCircle2, XCircle } from 'lucide-
 import confetti from 'canvas-confetti';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
 import { api } from '../services/api';
 import { PageWrapper } from '../components/Layout/PageWrapper';
 import { ProfileModal } from '../components/Common/ProfileModal';
@@ -15,6 +16,7 @@ interface ResultsProps {
 export const Results: React.FC<ResultsProps> = ({ onNavigate }) => {
   const { activeRoom, players, hostResetGame, leaveActiveRoom } = useGame();
   const { profile, refreshProfile } = useAuth();
+  const { confirm, toast } = useNotifications();
   
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -102,18 +104,41 @@ export const Results: React.FC<ResultsProps> = ({ onNavigate }) => {
   const isHost = activeRoom.host_id === profile.id;
 
   const handleRematch = async () => {
+    const shouldRematch = await confirm({
+      title: 'Start rematch?',
+      message: 'Scores and submitted words will reset for the next round. Room chat stays available.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Start Rematch',
+      tone: 'info'
+    });
+
+    if (!shouldRematch) return;
+
     setResetting(true);
     try {
       await hostResetGame();
+      toast({ title: 'Rematch starting', message: 'The room is returning to the lobby.', tone: 'success' });
       // Room state sync will automatically trigger Lobby navigation
     } catch (err) {
       console.error('Failed to trigger rematch:', err);
+      toast({ title: 'Could not start rematch', message: err instanceof Error ? err.message : 'Please try again.', tone: 'error' });
       setResetting(false);
     }
   };
 
   const handleGoHome = async () => {
+    const shouldLeave = await confirm({
+      title: 'Leave results room?',
+      message: 'Leaving ends your access to this room and its chat. Stay if you want to chat or wait for a rematch.',
+      cancelLabel: 'Stay for Rematch',
+      confirmLabel: 'Leave & Go Home',
+      tone: 'warning'
+    });
+
+    if (!shouldLeave) return;
+
     await leaveActiveRoom();
+    toast({ title: 'Left room', message: 'You are back on the home screen.', tone: 'info' });
     onNavigate('landing');
   };
 

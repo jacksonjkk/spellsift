@@ -76,6 +76,19 @@
   transform: translateY(-2px);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, var(--color-danger), #b91c1c);
+  color: var(--color-text-primary);
+  box-shadow: 0 4px 14px rgba(var(--color-danger-rgb), 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f87171, var(--color-danger));
+  box-shadow: 0 6px 20px rgba(var(--color-danger-rgb), 0.45);
+  transform: translateY(-2px);
+}
+
 .btn-outline {
   background: transparent;
   color: var(--color-text-primary);
@@ -138,6 +151,168 @@
 .input-error:focus {
   border-color: var(--color-danger);
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+/* Notifications */
+.toast-stack {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  z-index: 1200;
+  display: flex;
+  width: min(380px, calc(100vw - 2rem));
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-card-border);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: var(--backdrop-blur);
+  pointer-events: auto;
+  animation: fadeInDown 0.18s ease-out both;
+}
+
+.toast-icon {
+  display: inline-flex;
+  margin-top: 0.1rem;
+}
+
+.toast-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.toast-copy strong {
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+}
+
+.toast-copy span {
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.toast-close {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-card-border);
+}
+
+.toast-success {
+  border-color: rgba(var(--color-success-rgb), 0.32);
+}
+
+.toast-success .toast-icon {
+  color: var(--color-success);
+}
+
+.toast-error {
+  border-color: rgba(var(--color-danger-rgb), 0.35);
+}
+
+.toast-error .toast-icon {
+  color: var(--color-danger);
+}
+
+.toast-warning {
+  border-color: rgba(245, 158, 11, 0.38);
+}
+
+.toast-warning .toast-icon {
+  color: var(--color-warning);
+}
+
+.toast-info .toast-icon {
+  color: var(--color-accent);
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(11, 15, 25, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.confirm-dialog {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  width: min(450px, 100%);
+  padding: 1.25rem;
+  border: 1px solid var(--color-card-border);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: var(--shadow-glass), var(--shadow-glow);
+  animation: scaleIn 0.18s ease-out both;
+}
+
+.confirm-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--color-accent);
+}
+
+.confirm-danger .confirm-icon {
+  background: rgba(var(--color-danger-rgb), 0.1);
+  color: var(--color-danger);
+}
+
+.confirm-warning .confirm-icon {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--color-warning);
+}
+
+.confirm-copy h2 {
+  font-size: 1.25rem;
+  margin-bottom: 0.4rem;
+}
+
+.confirm-copy p {
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
 }
 
 /* Badges */

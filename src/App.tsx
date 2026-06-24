@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { GameProvider } from './contexts/GameContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { useGame } from './hooks/useGame';
 import { useAuth } from './hooks/useAuth';
 
@@ -136,7 +137,9 @@ function App() {
   return (
     <AuthProvider>
       <GameProvider>
-        <AppContent />
+        <NotificationProvider>
+          <AppContent />
+        </NotificationProvider>
       </GameProvider>
     </AuthProvider>
   );
