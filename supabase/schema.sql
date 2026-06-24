@@ -141,19 +141,42 @@ CREATE POLICY "Allow insert chat messages" ON public.chat_messages FOR INSERT WI
 
 -- AUTOMATIC PROFILE CREATION TRIGGER
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  requested_username text;
+  available_username text;
 BEGIN
+  requested_username := COALESCE(
+    NULLIF(trim(new.raw_user_meta_data->>'username'), ''),
+    'Player_' || substr(new.id::text, 1, 6)
+  );
+  available_username := requested_username;
+
+  IF EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE username = available_username AND id <> new.id
+  ) THEN
+    available_username := left(requested_username, 40) || '_' || substr(new.id::text, 1, 6);
+  END IF;
+
   INSERT INTO public.profiles (id, username, email, avatar_url)
   VALUES (
     new.id,
-    COALESCE(new.raw_user_meta_data->>'username', 'Player_' || substr(new.id::text, 1, 6)),
+    available_username,
     new.email,
     new.raw_user_meta_data->>'avatar_url'
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -185,12 +208,11 @@ DECLARE
     v_room_status TEXT;
     v_started_at TIMESTAMP WITH TIME ZONE;
     v_duration INT;
+    v_submission_grace_seconds INT := 10;
     v_base_word TEXT;
     v_user_id UUID := auth.uid();
     v_word_clean TEXT;
     v_base_clean TEXT;
-    v_is_valid BOOLEAN := TRUE;
-    v_error_msg TEXT := '';
 BEGIN
     -- Sanitize input
     v_word_clean := lower(trim(p_word));
@@ -212,8 +234,8 @@ BEGIN
         RETURN jsonb_build_object('valid', false, 'error', 'Game is not active.');
     END IF;
     
-    IF v_started_at + (v_duration || ' seconds')::interval < now() THEN
-        RETURN jsonb_build_object('valid', false, 'error', 'Round has expired.');
+    IF v_started_at + ((v_duration + v_submission_grace_seconds) || ' seconds')::interval < now() THEN
+        RETURN jsonb_build_object('valid', false, 'error', 'Round submission window has expired.');
     END IF;
     
     IF length(v_word_clean) = 0 THEN
@@ -266,6 +288,9 @@ RETURNS VOID AS $$
 DECLARE
     v_host_id UUID;
     v_room_status TEXT;
+    v_started_at TIMESTAMP WITH TIME ZONE;
+    v_duration INT;
+    v_submission_grace_seconds INT := 10;
     v_winner_id UUID := NULL;
     v_total_players INT;
     v_max_score INT := 0;
@@ -273,7 +298,8 @@ DECLARE
     v_is_tie BOOLEAN := false;
 BEGIN
     -- Lock the room so the same match cannot be finalized twice.
-    SELECT host_id, status INTO v_host_id, v_room_status
+    SELECT host_id, status, started_at, timer_duration
+    INTO v_host_id, v_room_status, v_started_at, v_duration
     FROM public.rooms WHERE id = p_room_id FOR UPDATE;
 
     IF v_host_id IS NULL THEN
@@ -287,6 +313,14 @@ BEGIN
 
     IF v_room_status = 'ended' THEN
         RETURN;
+    END IF;
+
+    IF v_room_status != 'playing' THEN
+        RAISE EXCEPTION 'Game is not active.';
+    END IF;
+
+    IF v_started_at + ((v_duration + v_submission_grace_seconds) || ' seconds')::interval > now() THEN
+        RAISE EXCEPTION 'Submission window is still open.';
     END IF;
 
     SELECT count(*)::int, COALESCE(max(score), 0)

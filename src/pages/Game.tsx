@@ -11,6 +11,9 @@ interface GameProps {
   onNavigate: (page: string) => void;
 }
 
+const SUBMISSION_GRACE_SECONDS = 10;
+const HOST_FINISH_BUFFER_MS = 1000;
+
 export const Game: React.FC<GameProps> = ({ onNavigate }) => {
   const { 
     activeRoom, 
@@ -26,43 +29,70 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
   const [isSubmittingAll, setIsSubmittingAll] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const timeUpHandledRef = useRef(false);
 
   const isHost = activeRoom?.host_id === profile?.id;
   const baseWord = activeRoom?.base_word || '';
 
+  useEffect(() => {
+    timeUpHandledRef.current = false;
+  }, [activeRoom?.id, activeRoom?.started_at]);
+
   // Timer completion callback
   const handleTimeUp = async () => {
-    if (isSubmittingAll) return;
+    if (timeUpHandledRef.current) return;
+    timeUpHandledRef.current = true;
     
     // 1. Submit all words first
     setIsSubmittingAll(true);
-    if (notepadText.trim()) {
-      const lines = notepadText.split('\n');
-      const wordsToSubmit = lines.map(line => {
-        // Strip out numbering like "1. ", "2.", etc. and trim spaces
-        return line.replace(/^\d+\.\s*/, '').trim().toUpperCase();
-      }).filter(word => word.length > 0);
+    try {
+      if (notepadText.trim()) {
+        const lines = notepadText.split('\n');
+        const wordsToSubmit = Array.from(new Set(lines.map(line => {
+          // Strip out numbering like "1. ", "2.", etc. and trim spaces
+          return line.replace(/^\d+\.\s*/, '').trim().toUpperCase();
+        }).filter(word => word.length > 0)));
 
-      // Submit all valid words one by one
-      for (const word of wordsToSubmit) {
-        try {
-          // We can skip client-side validation here since backend does it, 
-          // or we can just send it. The backend RPC handles validation.
-          await submitPlayerWord(word);
-        } catch (err) {
-          console.error('Submission failed for', word, err);
+        // Submit all valid words one by one
+        for (const word of wordsToSubmit) {
+          try {
+            // We can skip client-side validation here since backend does it, 
+            // or we can just send it. The backend RPC handles validation.
+            await submitPlayerWord(word);
+          } catch (err) {
+            console.error('Submission failed for', word, err);
+          }
         }
       }
-    }
-    setIsSubmittingAll(false);
 
-    // 2. Then host finishes the game
-    if (isHost && activeRoom) {
-      try {
-        await hostFinishGame();
-      } catch (err) {
-        console.error('Failed to end game:', err);
+      // 2. Then host finishes the game after everyone has had a short sync window.
+      if (isHost && activeRoom) {
+        const startedAt = activeRoom.started_at ? new Date(activeRoom.started_at).getTime() : Date.now();
+        const finishAt = startedAt
+          + (activeRoom.timer_duration + SUBMISSION_GRACE_SECONDS) * 1000
+          + HOST_FINISH_BUFFER_MS;
+        const waitMs = Math.max(0, finishAt - Date.now());
+
+        if (waitMs > 0) {
+          await new Promise(resolve => window.setTimeout(resolve, waitMs));
+        }
+
+        let finishAttempts = 0;
+        while (finishAttempts < 3) {
+          try {
+            await hostFinishGame();
+            break;
+          } catch (err) {
+            finishAttempts += 1;
+            if (finishAttempts >= 3) throw err;
+            await new Promise(resolve => window.setTimeout(resolve, 1500));
+          }
+        }
       }
+    } catch (err) {
+      console.error('Failed to finish time-up submission flow:', err);
+    } finally {
+      setIsSubmittingAll(false);
     }
   };
 

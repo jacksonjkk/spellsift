@@ -96,6 +96,21 @@ export const api = {
     return data;
   },
 
+  async isPlayerInRoom(roomId: string, userId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('players')
+      .select('id')
+      .eq('room_id', roomId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error checking room membership:', error);
+      return false;
+    }
+    return !!data;
+  },
+
   async updateRoomStatus(roomId: string, updates: Partial<Room>): Promise<Room> {
     const { data, error } = await supabase
       .from('rooms')
