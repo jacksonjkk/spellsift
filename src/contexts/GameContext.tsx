@@ -6,6 +6,8 @@ import { useAuth } from '../hooks/useAuth';
 import type { Room, Player, Submission, ChatMessage } from '../types';
 import { soundManager } from '../utils/sound';
 
+const ACTIVE_ROOM_STORAGE_KEY = 'spellsift.activeRoomId';
+
 interface GameContextType {
   activeRoom: Room | null;
   players: Player[];
@@ -29,15 +31,23 @@ interface GameContextType {
 export const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [chats, setChats] = useState<ChatMessage[]>([]);
-  const [loadingRoom, setLoadingRoom] = useState(false);
+  const [loadingRoom, setLoadingRoom] = useState(() => !!window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY));
   const [gameError, setGameError] = useState<string | null>(null);
 
   const clearGameError = () => setGameError(null);
+
+  const rememberActiveRoom = (roomId: string) => {
+    window.localStorage.setItem(ACTIVE_ROOM_STORAGE_KEY, roomId);
+  };
+
+  const forgetActiveRoom = () => {
+    window.localStorage.removeItem(ACTIVE_ROOM_STORAGE_KEY);
+  };
 
   // Load all data for the active room (players, chat, and user submissions)
   const refreshRoomData = useCallback(async (roomId: string) => {
@@ -68,6 +78,64 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (playersResult.status === 'fulfilled') setPlayers(playersResult.value);
     if (chatsResult.status === 'fulfilled') setChats(chatsResult.value);
   }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user || !profile) {
+      forgetActiveRoom();
+      setLoadingRoom(false);
+      return;
+    }
+
+    if (activeRoom) return;
+
+    const savedRoomId = window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY);
+    if (!savedRoomId) {
+      setLoadingRoom(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingRoom(true);
+
+    const restoreActiveRoom = async () => {
+      try {
+        const [room, isMember] = await Promise.all([
+          api.getRoomById(savedRoomId),
+          api.isPlayerInRoom(savedRoomId, profile.id)
+        ]);
+
+        if (cancelled) return;
+
+        if (!room || !isMember) {
+          forgetActiveRoom();
+          setPlayers([]);
+          setSubmissions([]);
+          setChats([]);
+          return;
+        }
+
+        setActiveRoom(room);
+        await refreshRoomData(room.id);
+      } catch (err) {
+        console.error('Error restoring active room:', err);
+        if (!cancelled) {
+          forgetActiveRoom();
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingRoom(false);
+        }
+      }
+    };
+
+    void restoreActiveRoom();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRoom, authLoading, profile, refreshRoomData, user]);
 
   // Handle cleanup of subscriptions
   useEffect(() => {
@@ -179,19 +247,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [activeRoom?.id, profile?.id, refreshLiveState, refreshRoomData]);
 
-  // Clean leave room if window closes
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (activeRoom && profile) {
-        // Run synchronous beacon or API delete
-        // Note: Realtime Presence or simple leave
-        api.leaveRoom(activeRoom.id, profile.id);
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [activeRoom, profile]);
-
   const createRoom = async (timerDuration: number, enforceDictionary: boolean): Promise<Room> => {
     if (!user || !profile || user.id !== profile.id) {
       throw new Error('Your session is not active. Please confirm your email or sign in again.');
@@ -226,6 +281,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const roomPlayers = await api.getRoomPlayers(room.id);
       setPlayers(roomPlayers);
       setActiveRoom(room);
+      rememberActiveRoom(room.id);
       setLoadingRoom(false);
       return room;
     } catch (err: any) {
@@ -275,6 +331,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const roomPlayers = await api.getRoomPlayers(room.id);
       setPlayers(roomPlayers);
       setActiveRoom(room);
+      rememberActiveRoom(room.id);
       setLoadingRoom(false);
       return room;
     } catch (err: any) {
@@ -292,6 +349,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setPlayers([]);
       setSubmissions([]);
       setChats([]);
+      forgetActiveRoom();
       try {
         await api.leaveRoom(roomId, userId);
       } catch (err) {
@@ -356,6 +414,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await refreshLiveState(activeRoom.id);
     } catch (err: any) {
       console.error('Error finalizing game:', err);
+      throw err;
     }
   };
 

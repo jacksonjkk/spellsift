@@ -203,9 +203,17 @@ export const Results: React.FC<ResultsProps> = ({ onNavigate }) => {
               const isWinnerPos = maxScore > 0 && player.score === maxScore;
 
               return (
-                <button
+                <div
                   key={player.id}
                   onClick={() => u && setSelectedPlayerId(u.id)}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ' ') && u) {
+                      e.preventDefault();
+                      setSelectedPlayerId(u.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                   className={`leaderboard-item ${isSelected ? 'active' : ''} ${isWinnerPos ? 'winner' : ''}`}
                   style={{ 
                     cursor: 'pointer',
@@ -233,7 +241,7 @@ export const Results: React.FC<ResultsProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-2">
                     <span style={{ fontWeight: 800, color: 'var(--color-accent)' }}>{player.score} pts</span>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

@@ -25,10 +25,19 @@ import './styles/layout.css';
 import './styles/animations.css';
 import './styles/components.css';
 
+const CURRENT_PAGE_STORAGE_KEY = 'spellsift.currentPage';
+const VALID_PAGES = ['landing', 'create-room', 'join-room', 'lobby', 'game', 'results', 'profile', 'statistics'];
+const ROOM_PAGES = ['lobby', 'game', 'results'];
+
+const getInitialPage = () => {
+  const savedPage = window.localStorage.getItem(CURRENT_PAGE_STORAGE_KEY);
+  return savedPage && VALID_PAGES.includes(savedPage) ? savedPage : 'landing';
+};
+
 const AppContent: React.FC = () => {
   const { loading } = useAuth();
-  const { activeRoom } = useGame();
-  const [currentPage, setCurrentPage] = useState<string>('landing');
+  const { activeRoom, loadingRoom } = useGame();
+  const [currentPage, setCurrentPage] = useState<string>(getInitialPage);
 
   const resetScroll = useCallback(() => {
     window.scrollTo(0, 0);
@@ -45,6 +54,7 @@ const AppContent: React.FC = () => {
     }
     resetScroll();
     setCurrentPage(page);
+    window.localStorage.setItem(CURRENT_PAGE_STORAGE_KEY, page);
     window.requestAnimationFrame(resetScroll);
   }, [resetScroll]);
 
@@ -63,6 +73,8 @@ const AppContent: React.FC = () => {
 
   // Reconnect / Auto-routing alignment based on active room state
   useEffect(() => {
+    if (loadingRoom) return;
+
     if (activeRoom) {
       if (activeRoom.status === 'lobby' && currentPage !== 'lobby') {
         navigateTo('lobby');
@@ -73,13 +85,13 @@ const AppContent: React.FC = () => {
       }
     } else {
       // If we aren't in a room, but on a room-specific page, redirect home
-      if (['lobby', 'game', 'results'].includes(currentPage)) {
+      if (ROOM_PAGES.includes(currentPage)) {
         navigateTo('landing');
       }
     }
-  }, [activeRoom, currentPage, navigateTo]);
+  }, [activeRoom, currentPage, loadingRoom, navigateTo]);
 
-  if (loading) {
+  if (loading || (loadingRoom && ROOM_PAGES.includes(currentPage))) {
     return <LoadingSpinner message="Checking player profile..." fullPage />;
   }
 

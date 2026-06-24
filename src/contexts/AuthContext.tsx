@@ -132,6 +132,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error.message.toLowerCase().includes('already registered')) {
           throw new Error('This email is already registered. Please log in instead.');
         }
+        if (error.status === 422) {
+          throw new Error('Signup could not create your account profile. Run supabase/migrations/006_fix_signup_profile_trigger.sql in the Supabase SQL Editor, then try again.');
+        }
         throw error;
       }
 
