@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Clock, ShieldCheck, Check } from 'lucide-react';
 import { useGame } from '../hooks/useGame';
+import { useNotifications } from '../hooks/useNotifications';
 import { PageWrapper } from '../components/Layout/PageWrapper';
 
 interface CreateRoomProps {
@@ -9,6 +10,7 @@ interface CreateRoomProps {
 
 export const CreateRoom: React.FC<CreateRoomProps> = ({ onNavigate }) => {
   const { createRoom, gameError, clearGameError } = useGame();
+  const { toast } = useNotifications();
   const [duration, setDuration] = useState(60);
   const [enforceDictionary, setEnforceDictionary] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -20,9 +22,15 @@ export const CreateRoom: React.FC<CreateRoomProps> = ({ onNavigate }) => {
     
     try {
       await createRoom(duration, enforceDictionary);
+      toast({ title: 'Room created', message: 'You are now in the lobby.', tone: 'success' });
       onNavigate('lobby');
     } catch (err) {
       console.error('Failed to create room:', err);
+      toast({
+        title: 'Could not create room',
+        message: err instanceof Error ? err.message : 'Please try again.',
+        tone: 'error'
+      });
     } finally {
       setSubmitting(false);
     }

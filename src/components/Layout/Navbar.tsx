@@ -2,6 +2,7 @@ import React from 'react';
 import { LogOut, BarChart2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useGame } from '../../hooks/useGame';
+import { useNotifications } from '../../hooks/useNotifications';
 import { VolumeControl } from '../Common/VolumeControl';
 
 interface NavbarProps {
@@ -12,14 +13,24 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage }) => {
   const { profile, signOut } = useAuth();
   const { activeRoom, leaveActiveRoom } = useGame();
+  const { confirm, toast } = useNotifications();
 
   const handleLogoClick = async () => {
     if (activeRoom) {
-      if (window.confirm('Do you want to leave your active room?')) {
-        await leaveActiveRoom();
-      } else {
+      const shouldLeave = await confirm({
+        title: 'Leave active room?',
+        message: 'Going home will remove you from this room. You will lose access to the room chat, and chat is cleared once the room is empty.',
+        cancelLabel: 'Stay in Room',
+        confirmLabel: 'Leave & Go Home',
+        tone: 'warning'
+      });
+
+      if (!shouldLeave) {
         return;
       }
+
+      await leaveActiveRoom();
+      toast({ title: 'Left room', message: 'You are back on the home screen.', tone: 'info' });
     }
     onNavigate('landing');
   };
@@ -34,9 +45,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage }) => {
 
   const handleSignOut = async () => {
     if (activeRoom) {
+      const shouldSignOut = await confirm({
+        title: 'Leave room and sign out?',
+        message: 'Signing out will remove you from the active room. You will lose access to room chat and match updates.',
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Leave Room & Sign Out',
+        tone: 'danger'
+      });
+
+      if (!shouldSignOut) return;
       await leaveActiveRoom();
     }
     await signOut();
+    toast({ title: 'Signed out', tone: 'info' });
     onNavigate('landing');
   };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Key } from 'lucide-react';
 import { useGame } from '../hooks/useGame';
+import { useNotifications } from '../hooks/useNotifications';
 import { PageWrapper } from '../components/Layout/PageWrapper';
 
 interface JoinRoomProps {
@@ -9,6 +10,7 @@ interface JoinRoomProps {
 
 export const JoinRoom: React.FC<JoinRoomProps> = ({ onNavigate }) => {
   const { joinRoomByCode, gameError, clearGameError } = useGame();
+  const { toast } = useNotifications();
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -21,9 +23,15 @@ export const JoinRoom: React.FC<JoinRoomProps> = ({ onNavigate }) => {
 
     try {
       await joinRoomByCode(code.trim().toUpperCase());
+      toast({ title: 'Joined lobby', message: 'You are in the room.', tone: 'success' });
       onNavigate('lobby');
     } catch (err) {
       console.error('Failed to join room:', err);
+      toast({
+        title: 'Could not join room',
+        message: err instanceof Error ? err.message : 'Check the room code and try again.',
+        tone: 'error'
+      });
     } finally {
       setSubmitting(false);
     }

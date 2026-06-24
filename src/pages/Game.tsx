@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Award, Star } from 'lucide-react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
 import { useTimer } from '../hooks/useTimer';
 import { PageWrapper } from '../components/Layout/PageWrapper';
 import { ProfileModal } from '../components/Common/ProfileModal';
@@ -24,6 +25,7 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
   } = useGame();
   
   const { profile } = useAuth();
+  const { confirm, toast } = useNotifications();
   
   const [notepadText, setNotepadText] = useState('1. ');
   const [isSubmittingAll, setIsSubmittingAll] = useState(false);
@@ -153,10 +155,19 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
   const sortedLeaderboard = [...players].sort((a, b) => b.score - a.score);
 
   const handleAbort = async () => {
-    if (window.confirm('Do you want to abandon this game? You will leave the room.')) {
-      await leaveActiveRoom();
-      onNavigate('landing');
-    }
+    const shouldAbort = await confirm({
+      title: 'Abort this match?',
+      message: 'You will leave the room immediately. Your room chat access ends, and your current round progress may not count.',
+      cancelLabel: 'Keep Playing',
+      confirmLabel: 'Abort & Leave',
+      tone: 'danger'
+    });
+
+    if (!shouldAbort) return;
+
+    await leaveActiveRoom();
+    toast({ title: 'Match aborted', message: 'You left the room.', tone: 'warning' });
+    onNavigate('landing');
   };
 
   return (

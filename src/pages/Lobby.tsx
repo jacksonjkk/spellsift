@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Copy, Check, Users, Shield, Play, LogOut, CheckCircle } from 'lucide-react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
 import { PageWrapper } from '../components/Layout/PageWrapper';
 
 interface LobbyProps {
@@ -20,6 +21,7 @@ export const Lobby: React.FC<LobbyProps> = ({ onNavigate }) => {
   } = useGame();
   
   const { profile } = useAuth();
+  const { confirm, toast } = useNotifications();
   
   const [copied, setCopied] = useState(false);
   const [baseWordInput, setBaseWordInput] = useState('');
@@ -52,10 +54,19 @@ export const Lobby: React.FC<LobbyProps> = ({ onNavigate }) => {
   };
 
   const handleLeave = async () => {
-    if (window.confirm('Are you sure you want to leave this game room?')) {
-      await leaveActiveRoom();
-      onNavigate('landing');
-    }
+    const shouldLeave = await confirm({
+      title: 'Leave this room?',
+      message: 'You will be removed from the room and lose access to its chat. If everyone leaves, the room chat is cleared.',
+      cancelLabel: 'Stay in Room',
+      confirmLabel: 'Leave Room',
+      tone: 'warning'
+    });
+
+    if (!shouldLeave) return;
+
+    await leaveActiveRoom();
+    toast({ title: 'Left room', message: 'Room chat is no longer available.', tone: 'info' });
+    onNavigate('landing');
   };
 
   const handleStartGameSubmit = async (e: React.FormEvent) => {
@@ -80,10 +91,12 @@ export const Lobby: React.FC<LobbyProps> = ({ onNavigate }) => {
 
     try {
       await hostStartGame(cleanWord);
+      toast({ title: 'Game starting', message: `${cleanWord} is locked in as the base word.`, tone: 'success' });
       setShowStartModal(false);
       onNavigate('game');
     } catch (err: any) {
       setWordError(err.message || 'Failed to start game');
+      toast({ title: 'Could not start game', message: err.message || 'Please try again.', tone: 'error' });
     }
   };
 
