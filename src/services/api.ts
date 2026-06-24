@@ -1,5 +1,5 @@
 import supabase from './supabase';
-import type { Room, Player, Profile, Submission, ChatMessage } from '../types';
+import type { Room, Player, Profile, Submission, ChatMessage, ChatMessageReceipt } from '../types';
 
 // Helper to generate a random 6-character room code
 export function generateRoomCode(): string {
@@ -277,6 +277,70 @@ export const api = {
       throw error;
     }
     return data;
+  },
+
+  async getChatMessageReceipts(roomId: string): Promise<ChatMessageReceipt[]> {
+    const { data, error } = await supabase
+      .from('chat_message_receipts')
+      .select('*')
+      .eq('room_id', roomId);
+
+    if (error) {
+      console.error('Error getting chat message receipts:', error);
+      throw error;
+    }
+    return data;
+  },
+
+  async markChatMessagesDelivered(roomId: string, userId: string, messageIds: string[]): Promise<ChatMessageReceipt[]> {
+    if (messageIds.length === 0) return [];
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('chat_message_receipts')
+      .upsert(
+        messageIds.map(messageId => ({
+          room_id: roomId,
+          message_id: messageId,
+          user_id: userId,
+          delivered_at: now,
+          updated_at: now
+        })),
+        { onConflict: 'message_id,user_id', ignoreDuplicates: true }
+      )
+      .select();
+
+    if (error) {
+      console.error('Error marking chat messages delivered:', error);
+      throw error;
+    }
+    return data || [];
+  },
+
+  async markChatMessagesSeen(roomId: string, userId: string, messageIds: string[]): Promise<ChatMessageReceipt[]> {
+    if (messageIds.length === 0) return [];
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('chat_message_receipts')
+      .upsert(
+        messageIds.map(messageId => ({
+          room_id: roomId,
+          message_id: messageId,
+          user_id: userId,
+          delivered_at: now,
+          seen_at: now,
+          updated_at: now
+        })),
+        { onConflict: 'message_id,user_id' }
+      )
+      .select();
+
+    if (error) {
+      console.error('Error marking chat messages seen:', error);
+      throw error;
+    }
+    return data || [];
   },
 
   // Statistics & History

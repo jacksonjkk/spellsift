@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import supabase from '../services/supabase';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import type { Room, Player, Submission, ChatMessage } from '../types';
+import type { Room, Player, Submission, ChatMessage, ChatMessageReceipt } from '../types';
 import { soundManager } from '../utils/sound';
 
 const ACTIVE_ROOM_STORAGE_KEY = 'spellsift.activeRoomId';
@@ -18,11 +18,26 @@ const timeoutAfter = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise
   ]);
 };
 
+const mergeChats = (existing: ChatMessage[], incoming: ChatMessage[]) => {
+  const byId = new Map(existing.map(chat => [chat.id, chat]));
+  incoming.forEach(chat => byId.set(chat.id, chat));
+  return Array.from(byId.values()).sort((a, b) => (
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  ));
+};
+
+const mergeChatReceipts = (existing: ChatMessageReceipt[], incoming: ChatMessageReceipt[]) => {
+  const byMessageAndUser = new Map(existing.map(receipt => [`${receipt.message_id}:${receipt.user_id}`, receipt]));
+  incoming.forEach(receipt => byMessageAndUser.set(`${receipt.message_id}:${receipt.user_id}`, receipt));
+  return Array.from(byMessageAndUser.values());
+};
+
 interface GameContextType {
   activeRoom: Room | null;
   players: Player[];
   submissions: Submission[];
   chats: ChatMessage[];
+  chatReceipts: ChatMessageReceipt[];
   loadingRoom: boolean;
   gameError: string | null;
   createRoom: (timerDuration: number, enforceDictionary: boolean) => Promise<Room>;
@@ -32,6 +47,7 @@ interface GameContextType {
   hostStartGame: (baseWord: string) => Promise<void>;
   submitPlayerWord: (word: string) => Promise<{ valid: boolean; word?: string; error?: string }>;
   sendRoomChat: (message: string) => Promise<void>;
+  markRoomChatsSeen: () => Promise<void>;
   refreshRoomData: () => Promise<void>;
   hostFinishGame: () => Promise<void>;
   hostResetGame: () => Promise<void>;
@@ -46,8 +62,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [players, setPlayers] = useState<Player[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [chats, setChats] = useState<ChatMessage[]>([]);
+  const [chatReceipts, setChatReceipts] = useState<ChatMessageReceipt[]>([]);
   const [loadingRoom, setLoadingRoom] = useState(() => !!window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY));
   const [gameError, setGameError] = useState<string | null>(null);
+  const activeRoomId = activeRoom?.id ?? null;
+  const profileId = profile?.id ?? null;
 
   const clearGameError = () => setGameError(null);
 
@@ -66,7 +85,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setPlayers(fetchedPlayers);
 
       const fetchedChats = await api.getChatMessages(roomId);
-      setChats(fetchedChats);
+      setChats(previous => mergeChats(previous, fetchedChats));
+
+      const fetchedChatReceipts = await api.getChatMessageReceipts(roomId);
+      setChatReceipts(previous => mergeChatReceipts(previous, fetchedChatReceipts));
 
       if (profile) {
         const fetchedSubmissions = await api.getUserSubmissions(roomId, profile.id);
@@ -78,15 +100,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [profile]);
 
   const refreshLiveState = useCallback(async (roomId: string) => {
-    const [roomResult, playersResult, chatsResult] = await Promise.allSettled([
+    const [roomResult, playersResult, chatsResult, chatReceiptsResult] = await Promise.allSettled([
       api.getRoomById(roomId),
       api.getRoomPlayers(roomId),
-      api.getChatMessages(roomId)
+      api.getChatMessages(roomId),
+      api.getChatMessageReceipts(roomId)
     ]);
 
     if (roomResult.status === 'fulfilled' && roomResult.value) setActiveRoom(roomResult.value);
     if (playersResult.status === 'fulfilled') setPlayers(playersResult.value);
-    if (chatsResult.status === 'fulfilled') setChats(chatsResult.value);
+    if (chatsResult.status === 'fulfilled') {
+      setChats(previous => mergeChats(previous, chatsResult.value));
+    }
+    if (chatReceiptsResult.status === 'fulfilled') {
+      setChatReceipts(previous => mergeChatReceipts(previous, chatReceiptsResult.value));
+    }
   }, []);
 
   useEffect(() => {
@@ -131,6 +159,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setPlayers([]);
           setSubmissions([]);
           setChats([]);
+          setChatReceipts([]);
           return;
         }
 
@@ -141,6 +170,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setPlayers([]);
           setSubmissions([]);
           setChats([]);
+          setChatReceipts([]);
           return;
         }
 
@@ -168,9 +198,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Handle cleanup of subscriptions
   useEffect(() => {
-    if (!activeRoom || !profile) return;
+    if (!activeRoomId || !profileId) return;
 
-    const roomId = activeRoom.id;
+    const roomId = activeRoomId;
     refreshRoomData(roomId);
 
     // Subscribe to Room updates
@@ -222,7 +252,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const newSubmission = payload.new as Submission;
           
           // If this submission belongs to the current user, add to local submissions
-          if (newSubmission.user_id === profile.id) {
+          if (newSubmission.user_id === profileId) {
             setSubmissions(prev => {
               if (prev.some(s => s.id === newSubmission.id)) return prev;
               return [...prev, newSubmission];
@@ -252,9 +282,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
           
           // Sound effect if chat was from another user
-          if (newChat.user_id !== profile.id) {
+          if (newChat.user_id !== profileId) {
             soundManager.playJoin();
           }
+        }
+      )
+      .subscribe();
+
+    const chatReceiptsChannel = supabase
+      .channel(`chat-receipts:${roomId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_message_receipts', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const receipt = payload.new as ChatMessageReceipt;
+          setChatReceipts(previous => mergeChatReceipts(previous, [receipt]));
         }
       )
       .subscribe();
@@ -272,9 +314,33 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(submissionsChannel);
       supabase.removeChannel(chatChannel);
+      supabase.removeChannel(chatReceiptsChannel);
       window.clearInterval(liveStatePoll);
     };
-  }, [activeRoom?.id, profile?.id, refreshLiveState, refreshRoomData]);
+  }, [activeRoomId, profileId, refreshLiveState, refreshRoomData]);
+
+  useEffect(() => {
+    if (!activeRoomId || !profileId) return;
+
+    const deliveredMessageIds = new Set(
+      chatReceipts
+        .filter(receipt => receipt.user_id === profileId)
+        .map(receipt => receipt.message_id)
+    );
+    const incomingUndeliveredIds = chats
+      .filter(chat => chat.user_id !== profileId && !deliveredMessageIds.has(chat.id))
+      .map(chat => chat.id);
+
+    if (incomingUndeliveredIds.length === 0) return;
+
+    void api.markChatMessagesDelivered(activeRoomId, profileId, incomingUndeliveredIds)
+      .then(receipts => {
+        setChatReceipts(previous => mergeChatReceipts(previous, receipts));
+      })
+      .catch(err => {
+        console.error('Error marking chat delivered:', err);
+      });
+  }, [activeRoomId, chats, chatReceipts, profileId]);
 
   const createRoom = async (timerDuration: number, enforceDictionary: boolean): Promise<Room> => {
     if (!user || !profile || user.id !== profile.id) {
@@ -378,6 +444,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setPlayers([]);
       setSubmissions([]);
       setChats([]);
+      setChatReceipts([]);
       forgetActiveRoom();
       try {
         await api.leaveRoom(roomId, userId);
@@ -436,6 +503,24 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       : [...previous, newMessage]);
   };
 
+  const markRoomChatsSeen = useCallback(async () => {
+    if (!activeRoomId || !profileId) return;
+
+    const seenMessageIds = new Set(
+      chatReceipts
+        .filter(receipt => receipt.user_id === profileId && receipt.seen_at)
+        .map(receipt => receipt.message_id)
+    );
+    const incomingUnseenIds = chats
+      .filter(chat => chat.user_id !== profileId && !seenMessageIds.has(chat.id))
+      .map(chat => chat.id);
+
+    if (incomingUnseenIds.length === 0) return;
+
+    const receipts = await api.markChatMessagesSeen(activeRoomId, profileId, incomingUnseenIds);
+    setChatReceipts(previous => mergeChatReceipts(previous, receipts));
+  }, [activeRoomId, chatReceipts, chats, profileId]);
+
   const hostFinishGame = async () => {
     if (!activeRoom || !profile || activeRoom.host_id !== profile.id) return;
     try {
@@ -465,6 +550,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         players,
         submissions,
         chats,
+        chatReceipts,
         loadingRoom,
         gameError,
         createRoom,
@@ -474,6 +560,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         hostStartGame,
         submitPlayerWord,
         sendRoomChat,
+        markRoomChatsSeen,
         refreshRoomData: async () => {
           if (activeRoom) {
             await refreshRoomData(activeRoom.id);

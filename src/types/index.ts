@@ -62,3 +62,14 @@ export interface ChatMessage {
   message: string;
   created_at: string;
 }
+
+export interface ChatMessageReceipt {
+  id: string;
+  message_id: string;
+  room_id: string;
+  user_id: string;
+  delivered_at: string;
+  seen_at: string | null;
+  created_at: string;
+  updated_at: string;
+}

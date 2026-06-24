@@ -103,6 +103,7 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
   });
 
   const disableInputs = timeLeft <= 0;
+  const isWaitingForResults = activeRoom?.status === 'playing' && timeLeft <= 0;
 
   // Auto-transition when game state is updated to ended, but ONLY if we have finished submitting
   useEffect(() => {
@@ -220,7 +221,7 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
           {/* Notepad Panel */}
           <div className="card card-glow-primary flex flex-col gap-4">
             <h3 className="notepad-heading">
-              {!isSubmittingAll && timeLeft > 0 && (
+              {!isWaitingForResults && timeLeft > 0 && (
                 <span
                   className={`notepad-mobile-timer ${timeLeft <= 10 ? 'notepad-mobile-timer-danger' : ''}`}
                   aria-label={`Time remaining: ${formattedTime}`}
@@ -233,7 +234,7 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
                 <span>Base word</span>
                 <strong>{baseWord}</strong>
               </span>
-              {isSubmittingAll && <span className="notepad-submitting-label">Submitting Answers...</span>}
+              {isWaitingForResults && <span className="notepad-submitting-label">Submitting Answers...</span>}
             </h3>
             
             <div style={{ flex: 1, position: 'relative' }}>
@@ -259,7 +260,7 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
                 autoCorrect="off"
                 autoCapitalize="characters"
               />
-              {isSubmittingAll && (
+              {isWaitingForResults && (
                 <div
                   role="status"
                   aria-live="polite"
@@ -294,7 +295,7 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
             </div>
             
             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-              {isSubmittingAll ? 'Round ended. Please wait while results are finalized.' : 'Words will auto-submit when the timer runs out! Keep typing.'}
+              {isWaitingForResults ? 'Round ended. Please wait while results are finalized.' : 'Words will auto-submit when the timer runs out! Keep typing.'}
             </p>
           </div>
         </div>
