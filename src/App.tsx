@@ -28,6 +28,7 @@ import './styles/components.css';
 const CURRENT_PAGE_STORAGE_KEY = 'spellsift.currentPage';
 const VALID_PAGES = ['landing', 'create-room', 'join-room', 'lobby', 'game', 'results', 'profile', 'statistics'];
 const ROOM_PAGES = ['lobby', 'game', 'results'];
+const ACTIVE_ROOM_REDIRECT_PAGES = ['landing', 'create-room', 'join-room', ...ROOM_PAGES];
 
 const getInitialPage = () => {
   const savedPage = window.localStorage.getItem(CURRENT_PAGE_STORAGE_KEY);
@@ -75,7 +76,7 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (loadingRoom) return;
 
-    if (activeRoom) {
+    if (activeRoom && ACTIVE_ROOM_REDIRECT_PAGES.includes(currentPage)) {
       if (activeRoom.status === 'lobby' && currentPage !== 'lobby') {
         navigateTo('lobby');
       } else if (activeRoom.status === 'playing' && currentPage !== 'game') {

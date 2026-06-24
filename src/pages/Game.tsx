@@ -223,6 +223,11 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
               <span>Notepad</span>
               {isSubmittingAll && <span style={{ fontSize: '0.9rem', color: 'var(--color-warning)', animation: 'pulse 1s infinite' }}>Submitting Answers...</span>}
             </h3>
+
+            <div className="notepad-base-word" aria-label={`Base word: ${baseWord}`}>
+              <span>Base word</span>
+              <strong>{baseWord}</strong>
+            </div>
             
             <div style={{ flex: 1, position: 'relative' }}>
               <textarea
@@ -247,10 +252,42 @@ export const Game: React.FC<GameProps> = ({ onNavigate }) => {
                 autoCorrect="off"
                 autoCapitalize="characters"
               />
+              {isSubmittingAll && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    minHeight: '250px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '1rem',
+                    padding: '1.5rem',
+                    borderRadius: 'var(--border-radius-sm)',
+                    background: 'rgba(15, 23, 42, 0.92)',
+                    border: '1px solid var(--color-card-border)',
+                    textAlign: 'center',
+                    zIndex: 1
+                  }}
+                >
+                  <div className="spinner" aria-hidden="true" />
+                  <div>
+                    <p style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                      Submitting your words...
+                    </p>
+                    <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                      Checking scores and preparing results
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             
             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-              Words will auto-submit when the timer runs out! Keep typing.
+              {isSubmittingAll ? 'Round ended. Please wait while results are finalized.' : 'Words will auto-submit when the timer runs out! Keep typing.'}
             </p>
           </div>
         </div>
