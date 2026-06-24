@@ -82,7 +82,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user || !profile) {
+    if (!user) {
       forgetActiveRoom();
       setLoadingRoom(false);
       return;
@@ -103,7 +103,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         const [room, isMember] = await Promise.all([
           api.getRoomById(savedRoomId),
-          api.isPlayerInRoom(savedRoomId, profile.id)
+          api.isPlayerInRoom(savedRoomId, user.id)
         ]);
 
         if (cancelled) return;
