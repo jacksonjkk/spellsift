@@ -403,70 +403,73 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
         </section>
       )}
 
-      {/* Features Section */}
-      <section className="py-12" style={{ borderTop: '1px solid var(--color-card-border)' }}>
-        <h2 className="text-center" style={{ fontSize: '2rem', marginBottom: '3rem' }}>
-          Game Features
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="card text-center flex flex-col items-center gap-4">
-            <Zap size={36} style={{ color: 'var(--color-accent)' }} />
-            <h3 style={{ fontSize: '1.25rem' }}>Real-time Multiplayer</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-              Powered by Supabase Realtime replication. Watch scores, players ready statuses, and chat updates sync instantly.
-            </p>
-          </div>
+      {/* Features and How-to sections are only shown to unauthenticated visitors */}
+      {!profile && (
+        <>
+          <section className="py-12" style={{ borderTop: '1px solid var(--color-card-border)' }}>
+            <h2 className="text-center" style={{ fontSize: '2rem', marginBottom: '3rem' }}>
+              Game Features
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="card text-center flex flex-col items-center gap-4">
+                <Zap size={36} style={{ color: 'var(--color-accent)' }} />
+                <h3 style={{ fontSize: '1.25rem' }}>Real-time Multiplayer</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                  Powered by Supabase Realtime replication. Watch scores, players ready statuses, and chat updates sync instantly.
+                </p>
+              </div>
 
-          <div className="card text-center flex flex-col items-center gap-4">
-            <Shield size={36} style={{ color: 'var(--color-primary-hover)' }} />
-            <h3 style={{ fontSize: '1.25rem' }}>Server-side Verification</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-              Cheat prevention with secure SQL procedures. Submissions are processed in database transactions to protect the game state.
-            </p>
-          </div>
+              <div className="card text-center flex flex-col items-center gap-4">
+                <Shield size={36} style={{ color: 'var(--color-primary-hover)' }} />
+                <h3 style={{ fontSize: '1.25rem' }}>Server-side Verification</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                  Cheat prevention with secure SQL procedures. Submissions are processed in database transactions to protect the game state.
+                </p>
+              </div>
 
-          <div className="card text-center flex flex-col items-center gap-4">
-            <Award size={36} style={{ color: 'var(--color-warning)' }} />
-            <h3 style={{ fontSize: '1.25rem' }}>Global Leaderboards</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-              Track wins, matches played, win rate, and average score. Prove your linguistic supremacy.
-            </p>
-          </div>
-        </div>
-      </section>
+              <div className="card text-center flex flex-col items-center gap-4">
+                <Award size={36} style={{ color: 'var(--color-warning)' }} />
+                <h3 style={{ fontSize: '1.25rem' }}>Global Leaderboards</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                  Track wins, matches played, win rate, and average score. Prove your linguistic supremacy.
+                </p>
+              </div>
+            </div>
+          </section>
 
-      {/* How to Play Section */}
-      <section className="py-12" style={{ borderTop: '1px solid var(--color-card-border)' }}>
-        <h2 className="text-center" style={{ fontSize: '2rem', marginBottom: '3.5rem' }}>
-          How It Works
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6" style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          <div className="text-center flex flex-col items-center gap-2">
-            <div style={{ background: 'var(--color-primary)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>1</div>
-            <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Host a Room</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Create a lobby and share the code or URL with friends.</p>
-          </div>
+          <section className="py-12" style={{ borderTop: '1px solid var(--color-card-border)' }}>
+            <h2 className="text-center" style={{ fontSize: '2rem', marginBottom: '3.5rem' }}>
+              How It Works
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6" style={{ maxWidth: '1000px', margin: '0 auto' }}>
+              <div className="text-center flex flex-col items-center gap-2">
+                <div style={{ background: 'var(--color-primary)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>1</div>
+                <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Host a Room</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Create a lobby and share the code or URL with friends.</p>
+              </div>
 
-          <div className="text-center flex flex-col items-center gap-2">
-            <div style={{ background: 'var(--color-secondary)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>2</div>
-            <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Choose Base Word</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>The host inputs a base word and starts the countdown.</p>
-          </div>
+              <div className="text-center flex flex-col items-center gap-2">
+                <div style={{ background: 'var(--color-secondary)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>2</div>
+                <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Choose Base Word</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>The host inputs a base word and starts the countdown.</p>
+              </div>
 
-          <div className="text-center flex flex-col items-center gap-2">
-            <div style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>3</div>
-            <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Form Words</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Find as many words as possible using letters from the base word before the timer ends.</p>
-          </div>
+              <div className="text-center flex flex-col items-center gap-2">
+                <div style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>3</div>
+                <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Form Words</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Find as many words as possible using letters from the base word before the timer ends.</p>
+              </div>
 
-          <div className="text-center flex flex-col items-center gap-2">
-            <div style={{ background: 'var(--color-warning)', color: 'var(--color-bg)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>4</div>
-            <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Win the Round</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>The player with the most validated submissions wins!</p>
-          </div>
-        </div>
-      </section>
+              <div className="text-center flex flex-col items-center gap-2">
+                <div style={{ background: 'var(--color-warning)', color: 'var(--color-bg)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>4</div>
+                <h3 style={{ fontSize: '1.1rem', marginTop: '0.5rem' }}>Win the Round</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>The player with the most validated submissions wins!</p>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </PageWrapper>
   );
 };
