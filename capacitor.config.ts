@@ -4,10 +4,6 @@ const config: CapacitorConfig = {
   appId: 'app.spellsift',
   appName: 'SpellSift',
   webDir: 'dist',
-  server: {
-    url: 'https://spellsift.app',
-    cleartext: false,
-  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
