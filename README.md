@@ -81,6 +81,44 @@ SQL security checks live in [`supabase/tests/`](supabase/tests/). They require a
 
 ---
 
+## 📱 Mobile Packaging (Capacitor)
+
+SpellSift ships as a Capacitor app for Android (iOS requires macOS). The PWA also works on any mobile browser without installation.
+
+### Android
+
+1. **Build & sync web assets into Android:**
+   ```bash
+   npm run build:mobile
+   ```
+
+2. **Open in Android Studio:**
+   ```bash
+   npm run open:android
+   ```
+
+3. **Build the release AAB/APK** from Android Studio: `Build → Generate Signed Bundle / APK`.
+
+### iOS (macOS only)
+
+```bash
+npx cap add ios
+npm run build:mobile
+npx cap open ios
+```
+
+### Configuration
+
+`capacitor.config.ts` sets the app ID (`app.spellsift`), web output dir (`dist`), and configures the splash screen, status bar, and keyboard plugins. Supabase requests are cross-origin and left untouched by the service worker.
+
+### Store readiness notes
+
+- **Age rating / Data safety:** configure in App Store Connect / Google Play Console (not code).
+- **App version:** bump `version` in `package.json` before each store build; it surfaces in the footer via `__APP_VERSION__`.
+- **Icons/splash:** replace the default Capacitor icons in `android/app/src/main/res/` with your own branded assets before submission.
+
+---
+
 ## 📂 Project structure
 
 ```
