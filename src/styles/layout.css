@@ -6,6 +6,8 @@
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
+  /* Keep content below the phone status bar / notch on mobile */
+  padding-top: max(1rem, env(safe-area-inset-top));
 }
 
 .main-content {

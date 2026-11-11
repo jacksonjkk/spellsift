@@ -48,24 +48,16 @@ svg {
   max-width: 100%;
 }
 
-/* Custom Scrollbar */
+/* Hide scrollbars entirely while keeping scroll functionality */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(109, 40, 217, 0.4);
-  border-radius: var(--border-radius-sm);
-  border: 2px solid var(--color-bg-darker);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(109, 40, 217, 0.6);
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
 }
 
 /* Base Headings */
