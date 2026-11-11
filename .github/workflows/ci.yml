@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  sql-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGPASSWORD: postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create test database
+        run: psql -h localhost -U postgres -d postgres -c 'CREATE DATABASE spellsift_test;'
+
+      - name: Bootstrap Supabase auth shim
+        run: psql -h localhost -U postgres -d spellsift_test -v ON_ERROR_STOP=1 -f supabase/tests/bootstrap.sql
+
+      - name: Load schema
+        run: psql -h localhost -U postgres -d spellsift_test -v ON_ERROR_STOP=1 -f supabase/schema.sql
+
+      - name: Seed dictionary
+        run: psql -h localhost -U postgres -d spellsift_test -v ON_ERROR_STOP=1 -f supabase/seed/dictionary.sql
+
+      - name: Run game-flow test
+        run: psql -h localhost -U postgres -d spellsift_test -v ON_ERROR_STOP=1 -f supabase/tests/flow.sql
+
+      - name: Run RLS/direct-write test
+        run: psql -h localhost -U postgres -d spellsift_test -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql

@@ -1,99 +1,106 @@
 import supabase from './supabase';
-import type { Room, Player, Profile, Submission, ChatMessage, ChatMessageReceipt } from '../types';
+import { ApiError } from '../utils/errors';
+import type {
+  BlockedPlayer,
+  ChatMessage,
+  ChatMessageReceipt,
+  Player,
+  Profile,
+  RecentMatch,
+  Room,
+  RoomSettings,
+  Submission,
+  SubmitWordResult,
+} from '../types';
 
-// Helper to generate a random 6-character room code
-export function generateRoomCode(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
+const PROFILE_FIELDS = 'id, username, avatar_url, wins, ties, games_played, created_at';
+const ROOM_FIELDS =
+  'id, room_code, host_id, base_word, status, timer_duration, max_players, round_number, started_at, finished_at, expires_at, created_at, enforce_dictionary';
+const PLAYER_FIELDS = `id, room_id, user_id, score, ready, joined_at, left_at, profiles(${PROFILE_FIELDS})`;
+const SUBMISSION_FIELDS = 'id, room_id, user_id, word, is_valid, created_at';
+const CHAT_FIELDS = 'id, room_id, user_id, username, message, is_hidden, created_at';
+const RECEIPT_FIELDS =
+  'id, message_id, room_id, user_id, delivered_at, seen_at, created_at, updated_at';
+const RESULT_FIELDS =
+  'id, room_id, round_number, winner_id, is_tie, tie_score, total_players, created_at';
 
 export const api = {
   // Profiles
   async getProfile(userId: string): Promise<Profile | null> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(PROFILE_FIELDS)
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      return null;
-    }
-    return data;
+    if (error) throw error;
+    return (data as Profile | null) ?? null;
   },
 
-  async updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile | null> {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single();
+  async updateProfile(username: string, avatarUrl: string | null): Promise<Profile> {
+    const { data, error } = await supabase.rpc('update_profile', {
+      p_username: username,
+      p_avatar_url: avatarUrl,
+    });
 
-    if (error) {
-      console.error('Error updating profile:', error);
-      throw error;
+    if (error) throw error;
+    return data as Profile;
+  },
+
+  async deleteAccount(): Promise<void> {
+    const { error } = await supabase.functions.invoke('delete-account', {
+      method: 'POST',
+    });
+
+    if (!error) return;
+
+    // Edge Functions return { error } JSON on failure. Surface that safe,
+    // user-facing message instead of the generic "non-2xx" wrapper.
+    const response = (error as { context?: Response }).context;
+    if (response) {
+      try {
+        const body = (await response.clone().json()) as { error?: unknown };
+        if (typeof body.error === 'string') {
+          throw new ApiError(body.error, { cause: error });
+        }
+      } catch (parseError) {
+        if (parseError instanceof ApiError) throw parseError;
+      }
     }
-    return data;
+
+    throw error;
   },
 
   // Rooms
-  async createRoom(
-    hostId: string, 
-    timerDuration: number, 
-    enforceDictionary: boolean
-  ): Promise<Room> {
-    const code = generateRoomCode();
-    const { data, error } = await supabase
-      .from('rooms')
-      .insert({
-        room_code: code,
-        host_id: hostId,
-        status: 'lobby',
-        timer_duration: timerDuration,
-        enforce_dictionary: enforceDictionary
-      })
-      .select()
-      .single();
+  async createRoom(settings: RoomSettings): Promise<Room> {
+    const { data, error } = await supabase.rpc('create_room', {
+      p_timer_duration: settings.timerDuration,
+      p_enforce_dictionary: settings.enforceDictionary,
+      p_max_players: settings.maxPlayers,
+    });
 
-    if (error) {
-      console.error('Error creating room:', error);
-      throw error;
-    }
-    return data;
+    if (error) throw error;
+    return data as Room;
   },
 
-  async getRoomByCode(code: string): Promise<Room | null> {
-    const { data, error } = await supabase
-      .from('rooms')
-      .select('*')
-      .eq('room_code', code.toUpperCase().trim())
-      .single();
+  async joinRoomByCode(code: string): Promise<Room> {
+    const { data, error } = await supabase.rpc('join_room_by_code', {
+      p_code: code.toUpperCase().trim(),
+    });
 
-    if (error) {
-      console.warn('Error fetching room by code:', error);
-      return null;
-    }
-    return data;
+    if (error) throw error;
+    return data as Room;
   },
 
   async getRoomById(roomId: string): Promise<Room | null> {
     const { data, error } = await supabase
       .from('rooms')
-      .select('*')
+      .select(ROOM_FIELDS)
       .eq('id', roomId)
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.warn('Error fetching room:', error);
-      return null;
-    }
-    return data;
+    if (error) throw error;
+    return (data as Room | null) ?? null;
   },
 
   async isPlayerInRoom(roomId: string, userId: string): Promise<boolean> {
@@ -102,288 +109,254 @@ export const api = {
       .select('id')
       .eq('room_id', roomId)
       .eq('user_id', userId)
+      .is('left_at', null)
       .maybeSingle();
 
-    if (error) {
-      console.error('Error checking room membership:', error);
-      return false;
-    }
+    if (error) throw error;
     return !!data;
   },
 
-  async updateRoomStatus(roomId: string, updates: Partial<Room>): Promise<Room> {
-    const { data, error } = await supabase
-      .from('rooms')
-      .update(updates)
-      .eq('id', roomId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating room status:', error);
-      throw error;
-    }
-    return data;
-  },
-
   // Players
-  async joinRoom(roomId: string, userId: string): Promise<Player> {
-    const { data, error } = await supabase
-      .from('players')
-      .upsert(
-        { room_id: roomId, user_id: userId, score: 0, ready: false },
-        { onConflict: 'room_id,user_id' }
-      )
-      .select()
-      .single();
+  async leaveRoom(roomId: string): Promise<void> {
+    const { error } = await supabase.rpc('leave_room', {
+      p_room_id: roomId,
+    });
 
-    if (error) {
-      console.error('Error joining room:', error);
-      throw error;
-    }
-    return data;
+    if (error) throw error;
   },
 
-  async leaveRoom(roomId: string, userId: string): Promise<void> {
-    const { error } = await supabase
-      .from('players')
-      .delete()
-      .eq('room_id', roomId)
-      .eq('user_id', userId);
+  async setReadyStatus(roomId: string, ready: boolean): Promise<void> {
+    const { error } = await supabase.rpc('set_ready', {
+      p_room_id: roomId,
+      p_ready: ready,
+    });
 
-    if (error) {
-      console.error('Error leaving room:', error);
-      throw error;
-    }
-  },
-
-  async setReadyStatus(roomId: string, userId: string, ready: boolean): Promise<Player> {
-    const { data, error } = await supabase
-      .from('players')
-      .update({ ready })
-      .eq('room_id', roomId)
-      .eq('user_id', userId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error setting ready status:', error);
-      throw error;
-    }
-    return data;
+    if (error) throw error;
   },
 
   async getRoomPlayers(roomId: string): Promise<Player[]> {
     const { data, error } = await supabase
       .from('players')
-      .select('*, profiles(*)')
-      .eq('room_id', roomId);
+      .select(PLAYER_FIELDS)
+      .eq('room_id', roomId)
+      .is('left_at', null)
+      .order('joined_at', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching room players:', error);
-      throw error;
-    }
-    return data as Player[];
+    if (error) throw error;
+    return (data as unknown as Player[]) ?? [];
   },
 
-  // Game Logic
+  // Game logic
   async startGame(roomId: string, baseWord: string): Promise<Room> {
-    const { data, error } = await supabase
-      .from('rooms')
-      .update({
-        base_word: baseWord.toUpperCase().trim(),
-        status: 'playing',
-        started_at: new Date().toISOString()
-      })
-      .eq('id', roomId)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('start_game', {
+      p_room_id: roomId,
+      p_base_word: baseWord.toUpperCase().trim(),
+    });
 
-    if (error) {
-      console.error('Error starting game:', error);
-      throw error;
-    }
-    return data;
+    if (error) throw error;
+    return data as Room;
   },
 
-  // Word submission RPC
-  async submitWord(roomId: string, word: string): Promise<{ valid: boolean; word?: string; error?: string }> {
+  async submitWord(roomId: string, word: string): Promise<SubmitWordResult> {
     const { data, error } = await supabase.rpc('submit_word', {
       p_room_id: roomId,
-      p_word: word
+      p_word: word,
     });
 
-    if (error) {
-      console.error('Error calling submit_word RPC:', error);
-      return { valid: false, error: error.message };
-    }
-
-    return data as { valid: boolean; word?: string; error?: string };
+    if (error) throw error;
+    if (!data) return { valid: false, error: 'No response from the server.' };
+    return data as SubmitWordResult;
   },
 
-  // Finish room RPC
   async finishRoom(roomId: string): Promise<void> {
     const { error } = await supabase.rpc('finish_room', {
-      p_room_id: roomId
+      p_room_id: roomId,
     });
 
-    if (error) {
-      console.error('Error calling finish_room RPC:', error);
-      throw error;
-    }
+    if (error) throw error;
   },
 
-  // Reset room RPC
   async resetRoom(roomId: string): Promise<void> {
     const { error } = await supabase.rpc('reset_room', {
-      p_room_id: roomId
+      p_room_id: roomId,
     });
 
-    if (error) {
-      console.error('Error calling reset_room RPC:', error);
-      throw error;
-    }
+    if (error) throw error;
   },
 
-  // Chat Messages
-  async sendChatMessage(roomId: string, userId: string, username: string, message: string): Promise<ChatMessage> {
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .insert({
-        room_id: roomId,
-        user_id: userId,
-        username,
-        message
-      })
-      .select()
-      .single();
+  async getServerTime(): Promise<string> {
+    const { data, error } = await supabase.rpc('get_server_time');
+    if (error) throw error;
+    return data as string;
+  },
 
-    if (error) {
-      console.error('Error sending chat message:', error);
-      throw error;
-    }
-    return data;
+  async checkWords(words: string[]): Promise<string[]> {
+    if (words.length === 0) return [];
+    const { data, error } = await supabase.rpc('check_words', {
+      p_words: words,
+    });
+    if (error) throw error;
+    return (data as string[] | null) ?? [];
+  },
+
+  // Chat
+  async sendChatMessage(roomId: string, message: string): Promise<ChatMessage> {
+    const { data, error } = await supabase.rpc('send_chat_message', {
+      p_room_id: roomId,
+      p_message: message,
+    });
+
+    if (error) throw error;
+    return data as ChatMessage;
   },
 
   async getChatMessages(roomId: string): Promise<ChatMessage[]> {
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('*')
+      .select(CHAT_FIELDS)
       .eq('room_id', roomId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false })
+      .limit(200);
 
-    if (error) {
-      console.error('Error getting chat messages:', error);
-      throw error;
-    }
-    return data;
+    if (error) throw error;
+    return ((data as ChatMessage[]) ?? []).slice().reverse();
   },
 
   async getChatMessageReceipts(roomId: string): Promise<ChatMessageReceipt[]> {
     const { data, error } = await supabase
       .from('chat_message_receipts')
-      .select('*')
+      .select(RECEIPT_FIELDS)
       .eq('room_id', roomId);
 
-    if (error) {
-      console.error('Error getting chat message receipts:', error);
-      throw error;
-    }
-    return data;
+    if (error) throw error;
+    return (data as ChatMessageReceipt[]) ?? [];
   },
 
-  async markChatMessagesDelivered(roomId: string, userId: string, messageIds: string[]): Promise<ChatMessageReceipt[]> {
+  async markChatMessagesDelivered(
+    roomId: string,
+    userId: string,
+    messageIds: string[]
+  ): Promise<ChatMessageReceipt[]> {
     if (messageIds.length === 0) return [];
 
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('chat_message_receipts')
       .upsert(
-        messageIds.map(messageId => ({
+        messageIds.map((messageId) => ({
           room_id: roomId,
           message_id: messageId,
           user_id: userId,
           delivered_at: now,
-          updated_at: now
+          updated_at: now,
         })),
         { onConflict: 'message_id,user_id', ignoreDuplicates: true }
       )
-      .select();
+      .select(RECEIPT_FIELDS);
 
-    if (error) {
-      console.error('Error marking chat messages delivered:', error);
-      throw error;
-    }
-    return data || [];
+    if (error) throw error;
+    return (data as ChatMessageReceipt[]) ?? [];
   },
 
-  async markChatMessagesSeen(roomId: string, userId: string, messageIds: string[]): Promise<ChatMessageReceipt[]> {
+  async markChatMessagesSeen(
+    roomId: string,
+    userId: string,
+    messageIds: string[]
+  ): Promise<ChatMessageReceipt[]> {
     if (messageIds.length === 0) return [];
 
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('chat_message_receipts')
       .upsert(
-        messageIds.map(messageId => ({
+        messageIds.map((messageId) => ({
           room_id: roomId,
           message_id: messageId,
           user_id: userId,
           delivered_at: now,
           seen_at: now,
-          updated_at: now
+          updated_at: now,
         })),
         { onConflict: 'message_id,user_id' }
       )
-      .select();
+      .select(RECEIPT_FIELDS);
 
-    if (error) {
-      console.error('Error marking chat messages seen:', error);
-      throw error;
-    }
-    return data || [];
+    if (error) throw error;
+    return (data as ChatMessageReceipt[]) ?? [];
   },
 
-  // Statistics & History
-  async getRecentMatches(userId: string): Promise<any[]> {
+  async reportChatMessage(messageId: string, reason = 'Reported from chat'): Promise<void> {
+    const { error } = await supabase.rpc('report_chat_message', {
+      p_message_id: messageId,
+      p_reason: reason,
+    });
+    if (error) throw error;
+  },
+
+  async blockPlayer(userId: string): Promise<void> {
+    const { error } = await supabase.rpc('block_player', {
+      p_blocked_id: userId,
+    });
+    if (error) throw error;
+  },
+
+  async unblockPlayer(userId: string): Promise<void> {
+    const { error } = await supabase.rpc('unblock_player', {
+      p_blocked_id: userId,
+    });
+    if (error) throw error;
+  },
+
+  async getBlockedPlayers(): Promise<BlockedPlayer[]> {
+    const { data, error } = await supabase
+      .from('blocked_players')
+      .select(
+        `blocker_id, blocked_id, created_at, profiles!blocked_players_blocked_id_fkey(${PROFILE_FIELDS})`
+      )
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data as unknown as BlockedPlayer[]) ?? [];
+  },
+
+  // Statistics and history
+  async getRecentMatches(userId: string): Promise<RecentMatch[]> {
     const { data, error } = await supabase
       .from('players')
-      .select('room_id, score, joined_at, rooms(room_code, status, base_word, host_id, game_results(winner_id, is_tie, tie_score, total_players))')
+      .select(
+        `room_id, score, joined_at, rooms!inner(room_code, status, base_word, host_id, round_number, game_results(${RESULT_FIELDS}))`
+      )
       .eq('user_id', userId)
+      .eq('rooms.status', 'ended')
       .order('joined_at', { ascending: false })
       .limit(10);
 
-    if (error) {
-      console.error('Error fetching recent matches:', error);
-      return [];
-    }
-    return data || [];
+    if (error) throw error;
+    return (data as unknown as RecentMatch[]) ?? [];
   },
 
   async getUserSubmissions(roomId: string, userId: string): Promise<Submission[]> {
     const { data, error } = await supabase
       .from('submissions')
-      .select('*')
+      .select(SUBMISSION_FIELDS)
       .eq('room_id', roomId)
       .eq('user_id', userId)
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching submissions:', error);
-      return [];
-    }
-    return data || [];
+    if (error) throw error;
+    return (data as Submission[]) ?? [];
   },
 
   async getRoomSubmissions(roomId: string): Promise<Submission[]> {
     const { data, error } = await supabase
       .from('submissions')
-      .select('*')
-      .eq('room_id', roomId);
+      .select(SUBMISSION_FIELDS)
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching room submissions:', error);
-      return [];
-    }
-    return data || [];
-  }
+    if (error) throw error;
+    return (data as Submission[]) ?? [];
+  },
 };
+
+export default api;

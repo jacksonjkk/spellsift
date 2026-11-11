@@ -7,7 +7,11 @@ interface LoadingSpinnerProps {
 
 export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ message = 'Loading...', fullPage = false }) => {
   const content = (
-    <div className="flex flex-col items-center justify-center gap-4 py-8">
+    <div
+      className="flex flex-col items-center justify-center gap-4 py-8"
+      role="status"
+      aria-live="polite"
+    >
       <div className="spinner" aria-hidden="true"></div>
       <p style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{message}</p>
     </div>

@@ -83,6 +83,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage }) => {
                 className={`btn btn-outline ${currentPage === 'statistics' ? 'active' : ''}`}
                 style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.4rem', border: currentPage === 'statistics' ? '1px solid var(--color-accent)' : undefined }}
                 title="View Match Statistics"
+                aria-label="View match statistics"
+                aria-current={currentPage === 'statistics' ? 'page' : undefined}
               >
                 <BarChart2 size={18} />
                 <span className="sr-only">Stats</span>
@@ -98,6 +100,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage }) => {
                   color: 'var(--color-text-primary)'
                 }}
                 title="Edit Profile"
+                aria-label={`Open profile for ${profile.username}`}
+                aria-current={currentPage === 'profile' ? 'page' : undefined}
               >
                 <img
                   src={profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.username}`}

@@ -3,44 +3,69 @@ import { ArrowLeft, BarChart2, Star, Calendar, Swords, Award } from 'lucide-reac
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { PageWrapper } from '../components/Layout/PageWrapper';
+import { toUserMessage } from '../utils/errors';
+import type { RecentMatch } from '../types';
 
 interface StatisticsProps {
   onNavigate: (page: string) => void;
 }
 
+const formatMatchDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown date';
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
   const { profile } = useAuth();
-  const [matches, setMatches] = useState<any[]>([]);
+  const [matches, setMatches] = useState<RecentMatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile?.id) {
+      return;
+    }
 
-    const loadStats = async () => {
-      try {
-        const data = await api.getRecentMatches(profile.id);
-        setMatches(data);
-      } catch (err) {
-        console.error('Failed to load recent matches:', err);
-      } finally {
-        setLoading(false);
-      }
+    let cancelled = false;
+
+    void api
+      .getRecentMatches(profile.id)
+      .then((data) => {
+        if (!cancelled) setMatches(data);
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setError(toUserMessage(loadError, 'Could not load your match history.'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-
-    loadStats();
-  }, [profile]);
+  }, [profile?.id]);
 
   if (!profile) return null;
 
-  // Compute Career stats
   const totalGames = profile.games_played;
   const totalWins = profile.wins;
   const totalTies = profile.ties || 0;
   const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
-  
-  const avgScore = matches.length > 0 
-    ? Math.round(matches.reduce((acc, curr) => acc + (curr.score || 0), 0) / matches.length * 10) / 10
-    : 0;
+
+  const avgScore =
+    matches.length > 0
+      ? Math.round(
+          (matches.reduce((total, match) => total + (match.score || 0), 0) / matches.length) * 10
+        ) / 10
+      : 0;
 
   return (
     <PageWrapper>
@@ -49,89 +74,197 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
           onClick={() => onNavigate('landing')}
           className="btn btn-outline"
           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}
+          type="button"
         >
           <ArrowLeft size={16} /> Back to Home
         </button>
 
         <div className="flex items-center gap-3 mb-8">
-          <BarChart2 size={32} style={{ color: 'var(--color-accent)' }} />
-          <h1 className="page-title" style={{ fontSize: '2rem' }}>Statistics Dashboard</h1>
+          <BarChart2 size={32} style={{ color: 'var(--color-accent)' }} aria-hidden="true" />
+          <h1 className="page-title" style={{ fontSize: '2rem' }}>
+            Statistics Dashboard
+          </h1>
         </div>
 
-        {/* Core Stats Cards */}
         <div className="stats-grid grid gap-4 mb-8">
           <div className="card text-center" style={{ padding: '1.25rem' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Total Played</p>
-            <p style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-text-primary)', marginTop: '0.25rem' }}>
+            <p
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              Total Played
+            </p>
+            <p
+              style={{
+                fontSize: '2rem',
+                fontWeight: 800,
+                color: 'var(--color-text-primary)',
+                marginTop: '0.25rem',
+              }}
+            >
               {totalGames}
             </p>
           </div>
 
           <div className="card text-center" style={{ padding: '1.25rem' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Wins</p>
-            <p style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-warning)', marginTop: '0.25rem' }}>
+            <p
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              Wins
+            </p>
+            <p
+              style={{
+                fontSize: '2rem',
+                fontWeight: 800,
+                color: 'var(--color-warning)',
+                marginTop: '0.25rem',
+              }}
+            >
               {totalWins}
             </p>
           </div>
 
           <div className="card text-center" style={{ padding: '1.25rem' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Ties</p>
-            <p style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-accent)', marginTop: '0.25rem' }}>
+            <p
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              Ties
+            </p>
+            <p
+              style={{
+                fontSize: '2rem',
+                fontWeight: 800,
+                color: 'var(--color-accent)',
+                marginTop: '0.25rem',
+              }}
+            >
               {totalTies}
             </p>
           </div>
 
           <div className="card text-center" style={{ padding: '1.25rem' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Win Rate</p>
-            <p style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-success)', marginTop: '0.25rem' }}>
+            <p
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              Win Rate
+            </p>
+            <p
+              style={{
+                fontSize: '2rem',
+                fontWeight: 800,
+                color: 'var(--color-success)',
+                marginTop: '0.25rem',
+              }}
+            >
               {winRate}%
             </p>
           </div>
 
           <div className="card text-center" style={{ padding: '1.25rem' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Avg Score</p>
-            <p style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-accent)', marginTop: '0.25rem' }}>
-              {avgScore} <span style={{ fontSize: '1rem', color: 'var(--color-text-muted)' }}>words</span>
+            <p
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              Avg Score (last 10)
+            </p>
+            <p
+              style={{
+                fontSize: '2rem',
+                fontWeight: 800,
+                color: 'var(--color-accent)',
+                marginTop: '0.25rem',
+              }}
+            >
+              {avgScore}{' '}
+              <span style={{ fontSize: '1rem', color: 'var(--color-text-muted)' }}>words</span>
             </p>
           </div>
         </div>
 
-        {/* Match History */}
         <div className="card">
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Swords size={20} style={{ color: 'var(--color-accent)' }} /> Match History (Last 10 Games)
+          <h2
+            style={{
+              fontSize: '1.25rem',
+              marginBottom: '0.35rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <Swords size={20} style={{ color: 'var(--color-accent)' }} aria-hidden="true" /> Match
+            History
           </h2>
+          <p
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--color-text-muted)',
+              marginBottom: '1.5rem',
+            }}
+          >
+            Last 10 completed games. Average score uses these matches.
+          </p>
 
           {loading ? (
-            <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem 0' }}>
+            <p
+              role="status"
+              style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem 0' }}
+            >
               Loading match logs...
+            </p>
+          ) : error ? (
+            <p
+              role="alert"
+              style={{ color: 'var(--color-danger)', textAlign: 'center', padding: '2rem 0' }}
+            >
+              {error}
             </p>
           ) : matches.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-muted)' }}>
               <p style={{ marginBottom: '1rem' }}>No matches recorded in your history yet.</p>
-              <button onClick={() => onNavigate('landing')} className="btn btn-primary">
+              <button
+                onClick={() => onNavigate('landing')}
+                className="btn btn-primary"
+                type="button"
+              >
                 Join a Game Room
               </button>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              {matches.map((item, idx) => {
-                const room = item.rooms;
-                const result = room?.game_results?.[0];
-                const didWin = result && result.winner_id === profile.id;
-                const didTie = result?.is_tie && item.score === result.tie_score;
-                
-                // Format date
-                const date = new Date(item.joined_at).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
+              {matches.map((match) => {
+                const room = match.rooms;
+                const results = room?.game_results ?? [];
+                const result =
+                  results.find((entry) => entry.round_number === room?.round_number) ??
+                  results[results.length - 1];
+                const didWin = Boolean(result && result.winner_id === profile.id);
+                const didTie = Boolean(
+                  result?.is_tie &&
+                    result.tie_score !== null &&
+                    match.score === result.tie_score
+                );
 
                 return (
-                  <div 
-                    key={idx}
+                  <div
+                    key={`${match.room_id}-${match.joined_at}`}
                     className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                     style={{
                       background: 'rgba(15, 23, 42, 0.4)',
@@ -142,7 +275,7 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
                         ? '4px solid var(--color-warning)'
                         : didTie
                           ? '4px solid var(--color-accent)'
-                          : '4px solid var(--color-card-border)'
+                          : '4px solid var(--color-card-border)',
                     }}
                   >
                     <div>
@@ -150,28 +283,67 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
                         <span style={{ fontWeight: 800, color: 'var(--color-text-primary)' }}>
                           Room {room?.room_code || 'N/A'}
                         </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Calendar size={12} /> {date}
+                        <span
+                          style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--color-text-muted)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <Calendar size={12} aria-hidden="true" /> {formatMatchDate(match.joined_at)}
                         </span>
                       </div>
-                      
-                      <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                        Base Word: <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>{room?.base_word || 'N/A'}</span>
+
+                      <p
+                        style={{
+                          fontSize: '0.9rem',
+                          color: 'var(--color-text-secondary)',
+                          marginTop: '0.25rem',
+                        }}
+                      >
+                        Base Word:{' '}
+                        <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
+                          {room?.base_word || 'N/A'}
+                        </span>
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-4 sm:text-right" style={{ alignSelf: 'stretch', justifyContent: 'space-between', width: 'auto' }}>
+                    <div
+                      className="flex items-center gap-4 sm:text-right"
+                      style={{
+                        alignSelf: 'stretch',
+                        justifyContent: 'space-between',
+                        width: 'auto',
+                      }}
+                    >
                       <div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Your Score</p>
-                        <p style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                          {item.score} <Star size={14} style={{ fill: 'var(--color-accent)' }} />
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                          Your Score
+                        </p>
+                        <p
+                          style={{
+                            fontSize: '1.25rem',
+                            fontWeight: 800,
+                            color: 'var(--color-accent)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.2rem',
+                          }}
+                        >
+                          {match.score}{' '}
+                          <Star size={14} style={{ fill: 'var(--color-accent)' }} aria-hidden="true" />
                         </p>
                       </div>
 
                       <div style={{ minWidth: '90px', textAlign: 'right' }}>
                         {didWin ? (
-                          <span className="badge badge-warning flex items-center gap-1" style={{ display: 'inline-flex' }}>
-                            <Award size={12} /> Winner
+                          <span
+                            className="badge badge-warning flex items-center gap-1"
+                            style={{ display: 'inline-flex' }}
+                          >
+                            <Award size={12} aria-hidden="true" /> Winner
                           </span>
                         ) : didTie ? (
                           <span className="badge badge-success" style={{ display: 'inline-flex' }}>

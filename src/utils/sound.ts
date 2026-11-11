@@ -1,42 +1,63 @@
+const MUTE_STORAGE_KEY = 'spellsift.muted';
+
 let audioCtx: AudioContext | null = null;
-let isMuted = false;
+let isMuted = (() => {
+  try {
+    return window.localStorage.getItem(MUTE_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+})();
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
-  
+
   if (!audioCtx) {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (AudioContextClass) {
       audioCtx = new AudioContextClass();
     }
   }
-  
-  // Resume context if suspended (browser security autoplays blocks)
+
+  // Resume context if suspended (browser security blocks autoplay).
   if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    void audioCtx.resume().catch(() => undefined);
   }
-  
+
   return audioCtx;
+}
+
+function persistMute(value: boolean) {
+  try {
+    window.localStorage.setItem(MUTE_STORAGE_KEY, String(value));
+  } catch {
+    // Storage can be unavailable in private browsing; muting still works in memory.
+  }
 }
 
 export const soundManager = {
   mute() {
     isMuted = true;
+    persistMute(true);
   },
-  
+
   unmute() {
     isMuted = false;
+    persistMute(false);
     getAudioContext();
   },
-  
+
   toggleMute(): boolean {
     isMuted = !isMuted;
+    persistMute(isMuted);
     if (!isMuted) {
       getAudioContext();
     }
     return isMuted;
   },
-  
+
   getIsMuted() {
     return isMuted;
   },
@@ -53,7 +74,7 @@ export const soundManager = {
     gain.connect(ctx.destination);
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(800, ctx.currentTime); // high frequency click
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
 
     gain.gain.setValueAtTime(0.08, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.08);
@@ -74,9 +95,8 @@ export const soundManager = {
     gain.connect(ctx.destination);
 
     osc.type = 'triangle';
-    // Double beep melody
-    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08); // E5
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08);
 
     gain.gain.setValueAtTime(0.12, ctx.currentTime);
     gain.gain.setValueAtTime(0.12, ctx.currentTime + 0.08);
@@ -120,8 +140,8 @@ export const soundManager = {
     gain.connect(ctx.destination);
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(329.63, ctx.currentTime); // E4
-    osc.frequency.setValueAtTime(440.00, ctx.currentTime + 0.1); // A4
+    osc.frequency.setValueAtTime(329.63, ctx.currentTime);
+    osc.frequency.setValueAtTime(440.0, ctx.currentTime + 0.1);
 
     gain.gain.setValueAtTime(0.1, ctx.currentTime);
     gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.1);
@@ -137,16 +157,15 @@ export const soundManager = {
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    
-    // Play a sequence of notes
+
     const notes = [
-      { note: 261.63, time: 0 },     // C4
-      { note: 329.63, time: 0.1 },   // E4
-      { note: 392.00, time: 0.2 },   // G4
-      { note: 523.25, time: 0.3 },   // C5
-      { note: 659.25, time: 0.5 },   // E5
-      { note: 783.99, time: 0.7 },   // G5
-      { note: 1046.50, time: 0.9 },  // C6
+      { note: 261.63, time: 0 },
+      { note: 329.63, time: 0.1 },
+      { note: 392.0, time: 0.2 },
+      { note: 523.25, time: 0.3 },
+      { note: 659.25, time: 0.5 },
+      { note: 783.99, time: 0.7 },
+      { note: 1046.5, time: 0.9 },
     ];
 
     notes.forEach(({ note, time }) => {
@@ -165,5 +184,5 @@ export const soundManager = {
       osc.start(now + time);
       osc.stop(now + time + 0.35);
     });
-  }
+  },
 };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, Zap, Award, User, Mail, Lock, Plus, LogIn, Quote, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { PageWrapper } from '../components/Layout/PageWrapper';
+import { toUserMessage } from '../utils/errors';
 
 interface LandingProps {
   onNavigate: (page: string) => void;
@@ -32,7 +33,9 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
     setSubmitting(true);
 
     if (!supabaseReady) {
-      setError('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file and restart the dev server.');
+      setError(
+        'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local, then restart the dev server.'
+      );
       setSubmitting(false);
       return;
     }
@@ -40,26 +43,34 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
     try {
       if (authTab === 'login') {
         if (!email || !password) {
-          throw new Error('Please enter email and password');
+          throw new Error('Please enter email and password.');
         }
         await signIn(email, password);
       } else {
-        if (username.trim().length < 3) {
-          throw new Error('Username must be at least 3 characters');
+        const cleanUsername = username.trim();
+        if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+          throw new Error('Username must be 3-20 characters.');
+        }
+        if (!/^[A-Za-z0-9_ -]+$/.test(cleanUsername)) {
+          throw new Error('Username can only use letters, numbers, spaces, underscores, and hyphens.');
         }
         if (!email || !password) {
-          throw new Error('Please fill in all fields');
+          throw new Error('Please fill in all fields.');
         }
-        const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${avatarSeed}`;
-        const result = await signUp(email, password, username.trim(), avatarUrl);
+        const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(
+          avatarSeed
+        )}`;
+        const result = await signUp(email, password, cleanUsername, avatarUrl);
         if (result.requiresEmailConfirmation) {
-          setNotice('Account created. Check your email and confirm the account, then log in to create a room.');
+          setNotice(
+            'Account created. Check your email and confirm the account, then log in to create a room.'
+          );
           setAuthTab('login');
           setPassword('');
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please try again.');
+    } catch (error) {
+      setError(toUserMessage(error, 'Authentication failed. Please try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -112,13 +123,14 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
             lineHeight: '1.8',
             color: 'var(--color-text-secondary)'
           }}>
-            <div><span style={{ color: 'var(--color-accent)' }}>1.</span> Run the SQL from <span style={{ color: 'var(--color-warning)' }}>supabase/schema.sql</span> in your Supabase SQL Editor</div>
-            <div><span style={{ color: 'var(--color-accent)' }}>2.</span> Create a <span style={{ color: 'var(--color-warning)' }}>.env</span> file in the project root:</div>
+            <div><span style={{ color: 'var(--color-accent)' }}>1.</span> Run <span style={{ color: 'var(--color-warning)' }}>supabase/schema.sql</span> (fresh project) or <span style={{ color: 'var(--color-warning)' }}>supabase/migrations/009_security_and_integrity.sql</span> (existing project) in the Supabase SQL Editor</div>
+            <div><span style={{ color: 'var(--color-accent)' }}>2.</span> Seed dictionary mode with <span style={{ color: 'var(--color-warning)' }}>supabase/seed/dictionary.sql</span></div>
+            <div><span style={{ color: 'var(--color-accent)' }}>3.</span> Create a <span style={{ color: 'var(--color-warning)' }}>.env.local</span> file in the project root:</div>
             <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
               <div>VITE_SUPABASE_URL=<span style={{ color: 'var(--color-success)' }}>your-project-url</span></div>
               <div>VITE_SUPABASE_ANON_KEY=<span style={{ color: 'var(--color-success)' }}>your-anon-key</span></div>
             </div>
-            <div style={{ marginTop: '0.5rem' }}><span style={{ color: 'var(--color-accent)' }}>3.</span> Restart the dev server (<span style={{ color: 'var(--color-warning)' }}>npm run dev</span>)</div>
+            <div style={{ marginTop: '0.5rem' }}><span style={{ color: 'var(--color-accent)' }}>4.</span> Restart the dev server (<span style={{ color: 'var(--color-warning)' }}>npm run dev</span>)</div>
           </div>
         </div>
       )}
@@ -184,16 +196,38 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
           {/* Authentication Card */}
           {!profile ? (
             <div className="card card-glow-primary text-left animate-fade-in delay-1">
-              <div className="auth-tabs flex gap-2" style={{ borderBottom: '1px solid var(--color-card-border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
-                <button 
-                  onClick={() => { setAuthTab('login'); setError(null); }}
+              <div
+                className="auth-tabs flex gap-2"
+                role="tablist"
+                aria-label="Account access"
+                style={{
+                  borderBottom: '1px solid var(--color-card-border)',
+                  paddingBottom: '1rem',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={authTab === 'login'}
+                  onClick={() => {
+                    setAuthTab('login');
+                    setError(null);
+                  }}
                   className={`btn ${authTab === 'login' ? 'btn-primary' : 'btn-outline'}`}
                   style={{ flex: 1, padding: '0.5rem' }}
                 >
                   Log In
                 </button>
-                <button 
-                  onClick={() => { setAuthTab('register'); setError(null); }}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={authTab === 'register'}
+                  onClick={() => {
+                    setAuthTab('register');
+                    setError(null);
+                    setNotice(null);
+                  }}
                   className={`btn ${authTab === 'register' ? 'btn-primary' : 'btn-outline'}`}
                   style={{ flex: 1, padding: '0.5rem' }}
                 >
@@ -232,55 +266,101 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
               <form onSubmit={handleAuthSubmit} className="flex flex-col gap-4">
                 {authTab === 'register' && (
                   <div className="form-group">
-                    <label className="label">Username</label>
+                    <label className="label" htmlFor="register-username">
+                      Username
+                    </label>
                     <div className="flex gap-2 items-center" style={{ position: 'relative' }}>
-                      <User size={16} style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)' }} />
+                      <User
+                        size={16}
+                        style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)' }}
+                        aria-hidden="true"
+                      />
                       <input
+                        id="register-username"
                         type="text"
                         className="input"
                         placeholder="Choose username..."
                         style={{ paddingLeft: '2.5rem' }}
                         value={username}
-                        onChange={(e) => setUsername(e.target.value)}
+                        onChange={(event) => setUsername(event.target.value)}
                         required
                         disabled={submitting}
-                        maxLength={15}
+                        minLength={3}
+                        maxLength={20}
+                        autoComplete="username"
+                        autoCorrect="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        aria-describedby="register-username-hint"
                       />
                     </div>
+                    <p
+                      id="register-username-hint"
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-muted)',
+                        marginTop: '0.4rem',
+                      }}
+                    >
+                      3&ndash;20 characters. Visible to other players.
+                    </p>
                   </div>
                 )}
 
                 <div className="form-group">
-                    <label className="label">Email Address</label>
+                    <label className="label" htmlFor="auth-email">
+                      Email Address
+                    </label>
                     <div className="flex gap-2 items-center" style={{ position: 'relative' }}>
-                      <Mail size={16} style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)' }} />
+                      <Mail
+                        size={16}
+                        style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)' }}
+                        aria-hidden="true"
+                      />
                       <input
+                        id="auth-email"
                         type="email"
                         className="input"
                         placeholder="your@email.com"
                         style={{ paddingLeft: '2.5rem' }}
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(event) => setEmail(event.target.value)}
                         required
                         disabled={submitting}
+                        autoComplete="email"
+                        inputMode="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        maxLength={254}
                       />
                     </div>
                   </div>
 
                 <div className="form-group">
-                    <label className="label">Password</label>
+                    <label className="label" htmlFor="auth-password">
+                      Password
+                    </label>
                     <div className="flex gap-2 items-center" style={{ position: 'relative' }}>
-                      <Lock size={16} style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)' }} />
+                      <Lock
+                        size={16}
+                        style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)' }}
+                        aria-hidden="true"
+                      />
                       <input
+                        id="auth-password"
                         type={showPassword ? 'text' : 'password'}
                         className="input"
                         placeholder="••••••••"
                         style={{ paddingLeft: '2.5rem', paddingRight: '2.75rem' }}
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(event) => setPassword(event.target.value)}
                         required
                         disabled={submitting}
                         minLength={6}
+                        maxLength={72}
+                        autoComplete={authTab === 'login' ? 'current-password' : 'new-password'}
+                        aria-describedby="auth-password-hint"
                       />
                       <button
                         type="button"
@@ -306,11 +386,52 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
+                    <p
+                      id="auth-password-hint"
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-muted)',
+                        marginTop: '0.4rem',
+                      }}
+                    >
+                      {authTab === 'register'
+                        ? 'At least 6 characters.'
+                        : 'Use the password for this account.'}
+                    </p>
                   </div>
 
                 <button type="submit" className="btn btn-primary btn-full" style={{ padding: '0.85rem', marginTop: '0.5rem' }} disabled={submitting}>
                   {submitting ? (authTab === 'login' ? 'Signing in...' : 'Creating account...') : authTab === 'login' ? 'Log In' : 'Create Account'}
                 </button>
+
+                {authTab === 'register' && (
+                  <p
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--color-text-muted)',
+                      textAlign: 'center',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    By creating an account you agree to the{' '}
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => onNavigate('terms')}
+                    >
+                      Terms of Service
+                    </button>{' '}
+                    and{' '}
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => onNavigate('privacy')}
+                    >
+                      Privacy Policy
+                    </button>
+                    .
+                  </p>
+                )}
               </form>
             </div>
           ) : (
@@ -429,9 +550,10 @@ export const Landing: React.FC<LandingProps> = ({ onNavigate }) => {
 
               <div className="card text-center flex flex-col items-center gap-4">
                 <Award size={36} style={{ color: 'var(--color-warning)' }} />
-                <h3 style={{ fontSize: '1.25rem' }}>Global Leaderboards</h3>
+                <h3 style={{ fontSize: '1.25rem' }}>Career Stats</h3>
                 <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                  Track wins, matches played, win rate, and average score. Prove your linguistic supremacy.
+                  Track wins, matches played, win rate, average score, and your last ten matches.
+                  Prove your linguistic supremacy.
                 </p>
               </div>
             </div>

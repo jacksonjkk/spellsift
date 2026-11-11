@@ -1,98 +1,97 @@
+/* eslint-disable react-hooks/set-state-in-effect -- The countdown synchronizes React state with the wall clock, timers, and visibility changes. */
 import { useEffect, useState, useRef } from 'react';
 import { soundManager } from '../utils/sound';
+import { formatTime } from '../utils/time';
 
 interface UseTimerProps {
   startedAt: string | null;
   durationSeconds: number;
   onTimeUp?: () => void;
+  serverTimeOffsetMs?: number;
 }
 
-export function useTimer({ startedAt, durationSeconds, onTimeUp }: UseTimerProps) {
+export function useTimer({
+  startedAt,
+  durationSeconds,
+  onTimeUp,
+  serverTimeOffsetMs = 0,
+}: UseTimerProps) {
   const [timeLeft, setTimeLeft] = useState<number>(durationSeconds);
   const [isTimeUp, setIsTimeUp] = useState<boolean>(false);
   const onTimeUpRef = useRef(onTimeUp);
+  const firedRef = useRef(false);
   const tickedSeconds = useRef<Record<number, boolean>>({});
 
-  // Maintain reference to callback to avoid effect cycles
   useEffect(() => {
     onTimeUpRef.current = onTimeUp;
   }, [onTimeUp]);
 
   useEffect(() => {
+    firedRef.current = false;
+    tickedSeconds.current = {};
+
     if (!startedAt) {
       setTimeLeft(durationSeconds);
       setIsTimeUp(false);
-      tickedSeconds.current = {};
       return;
     }
 
     const calculateTimeLeft = () => {
       const startTime = new Date(startedAt).getTime();
-      const now = Date.now();
+      const now = Date.now() + serverTimeOffsetMs;
       const elapsed = Math.floor((now - startTime) / 1000);
-      const remaining = durationSeconds - elapsed;
-      
-      return Math.max(0, remaining);
+      return Math.max(0, durationSeconds - elapsed);
     };
 
-    // Initial check
+    const fireTimeUp = () => {
+      if (firedRef.current) return;
+      firedRef.current = true;
+      setIsTimeUp(true);
+      onTimeUpRef.current?.();
+    };
+
     const initialRemaining = calculateTimeLeft();
     setTimeLeft(initialRemaining);
-    
     if (initialRemaining <= 0) {
-      setIsTimeUp(true);
-      if (onTimeUpRef.current) {
-        onTimeUpRef.current();
-      }
+      fireTimeUp();
       return;
     }
 
-    const intervalId = setInterval(() => {
+    const intervalId = window.setInterval(() => {
       const remaining = calculateTimeLeft();
       setTimeLeft(remaining);
 
-      // Play tick sound for final 10 seconds
-      if (remaining <= 10 && remaining > 0) {
-        if (!tickedSeconds.current[remaining]) {
-          soundManager.playTick();
-          tickedSeconds.current[remaining] = true;
-        }
+      if (remaining <= 10 && remaining > 0 && !tickedSeconds.current[remaining]) {
+        soundManager.playTick();
+        tickedSeconds.current[remaining] = true;
       }
 
       if (remaining <= 0) {
-        clearInterval(intervalId);
-        setIsTimeUp(true);
-        if (onTimeUpRef.current) {
-          onTimeUpRef.current();
-        }
+        window.clearInterval(intervalId);
+        fireTimeUp();
       }
-    }, 250); // High precision polling to check time
+    }, 1000);
 
-    // Sync on page focus / visibility changes
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const remaining = calculateTimeLeft();
-        setTimeLeft(remaining);
-        if (remaining <= 0) {
-          setIsTimeUp(true);
-          if (onTimeUpRef.current) {
-            onTimeUpRef.current();
-          }
-        }
+      if (document.visibilityState !== 'visible') return;
+      const remaining = calculateTimeLeft();
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        fireTimeUp();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(intervalId);
+      window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [startedAt, durationSeconds]);
+  }, [startedAt, durationSeconds, serverTimeOffsetMs]);
 
   return {
     timeLeft,
     isTimeUp,
-    formattedTime: `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`
+    formattedTime: formatTime(timeLeft),
   };
 }

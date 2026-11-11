@@ -1,102 +1,148 @@
 # SpellSift 🎮
 > **Tagline:** Find. Form. Win.
 
-SpellSift is a production-ready, real-time multiplayer word game built with **React**, **TypeScript**, **Vite**, **Pure CSS**, and **Supabase**. One host starts a room, picks the round duration, and provides a base word. Players race the clock to form as many valid words as possible using only the letters from the base word. Live scoreboards and chat sync in real time!
+SpellSift is a real-time multiplayer word game built with **React**, **TypeScript**, **Vite**, **Pure CSS**, and **Supabase**. One host starts a room, picks the round duration, and provides a base word. Players race the clock to form as many valid words as possible using only the letters from the base word. Live scoreboards and chat sync in real time.
 
 ---
 
-## 🚀 Quick Start Instructions
+## 🚀 Quick Start
 
-### 1. Clone & Install Dependencies
-First, install the package dependencies:
+### 1. Clone & install
+
 ```bash
 npm install
 ```
 
-### 2. Configure Environment Variables
-Create a `.env` file in the root directory and copy the contents of `.env.example`:
+### 2. Configure environment variables
+
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
-Fill in the Supabase client settings used by this frontend:
-- `VITE_SUPABASE_URL`: Your Supabase Project URL.
-- `VITE_SUPABASE_ANON_KEY`: Your Supabase Anonymous API Key.
 
-The Postgres URI you pasted is for direct database access from server-side tools. The browser app uses the project URL plus anon key instead.
+Fill in the Supabase client settings:
 
-### 3. Initialize the Database
-1. Go to the [Supabase Console](https://supabase.com/dashboard).
-2. Open the **SQL Editor** in your project.
-3. Copy the entire contents of [supabase/schema.sql](supabase/schema.sql) and execute it.
-4. Go to **Database** -> **Replication** -> **Source tables** and make sure you enable Replication for the following tables to activate real-time features:
-   - `rooms`
-   - `players`
-   - `submissions`
-   - `chat_messages`
+- `VITE_SUPABASE_URL`: your Supabase project URL.
+- `VITE_SUPABASE_ANON_KEY`: your Supabase anon/public key.
+- `VITE_ERROR_REPORT_URL` (optional): an HTTPS endpoint that receives unhandled client errors as JSON. Leave blank to log errors only in the browser console.
 
-For an existing project whose database was reset or repaired, also run
-[`supabase/migrations/002_repair_auth_profiles_and_room_rls.sql`](supabase/migrations/002_repair_auth_profiles_and_room_rls.sql).
-It restores missing public profiles for existing Auth users and repairs the room/player RLS policies without disabling RLS.
+`.env` and `.env.local` are ignored by git. Never put a service-role key in a `VITE_*` variable: every Vite variable is embedded in the browser bundle.
 
-### 4. Run Development Server
-Start the local Vite development server:
+### 3. Initialize Supabase
+
+Use the [Supabase CLI](https://supabase.com/docs/guides/cli) for an existing project:
+
+```bash
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase db push
+```
+
+`supabase db push` applies the numbered migrations in `supabase/migrations/`. Migration `009_security_and_integrity.sql` is the consolidated security/game-integrity upgrade and is also the source of truth for a fresh install. For a brand-new project you can alternatively run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor.
+
+**Seed the dictionary.** Dictionary mode validates words on the server against `public.dictionary_words`. Load the bundled word list once (and again after recreating the database):
+
+```bash
+psql "$DATABASE_URL" -f supabase/seed/dictionary.sql
+```
+
+Use the direct database connection string from **Project Settings → Database**. The seed is safe to re-run.
+
+**Deploy account deletion.** In-app account deletion calls a Supabase Edge Function:
+
+```bash
+supabase functions deploy delete-account
+```
+
+Supabase provides `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to the function automatically. The service-role key is never shipped to the browser.
+
+Realtime publication for `rooms`, `players`, `submissions`, `chat_messages`, and `chat_message_receipts` is configured by the schema. No manual replication setup is required.
+
+### 4. Run the development server
+
 ```bash
 npm run dev
 ```
-Open your browser and navigate to `http://localhost:5173`.
+
+Open `http://localhost:5173`.
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing and checks
 
-To run unit tests for the word validation logic:
 ```bash
-npm run test
+npm run lint
+npm test
+npm run build
 ```
 
+The CI workflow in `.github/workflows/ci.yml` runs the same checks on every push and pull request, plus the SQL flow/RLS suite against a disposable Postgres service.
+
+SQL security checks live in [`supabase/tests/`](supabase/tests/). They require a Postgres database with the schema applied; see the README in that directory for the exact commands.
+
 ---
 
-## 📂 File Structure
+## 📂 Project structure
 
 ```
 src/
 ├── components/
 │   ├── Auth/              # Account authentication forms
-│   ├── Game/              # Active Game boards, Chat widgets
-│   ├── Common/            # Loading Spinners, Audio volume selectors
-│   └── Layout/            # Navbars, Footers, Page frames
+│   ├── Game/              # Game board, chat, and moderation actions
+│   ├── Common/            # Spinner, error boundary, profile modal
+│   └── Layout/            # Navbar, footer, page frame
 ├── pages/
 │   ├── Landing.tsx        # Homepage, login, and registration
 │   ├── CreateRoom.tsx     # Game host duration and rules configuration
-│   ├── JoinRoom.tsx       # Room joining keypad
-│   ├── Lobby.tsx          # Real-time waiting area
-│   ├── Game.tsx           # Play board with letter tiles and live leaderboards
-│   ├── Results.tsx        # Winner crown displays, submissions inspection, and rematch button
-│   ├── Profile.tsx        # User username editor and robot avatar selection
-│   └── Statistics.tsx     # Career wins, games played, and match logs
-├── hooks/
-│   ├── useAuth.ts         # User session references
-│   ├── useGame.ts         # Sync room subscriptions
-│   └── useTimer.ts        # Drift-free ticking countdown timer
-├── contexts/
-│   ├── AuthContext.tsx    # Auth handlers
-│   └── GameContext.tsx    # Real-time Postgres Changes channels
-├── services/
-│   ├── supabase.ts        # Supabase client singleton
-│   └── api.ts             # Direct database SQL wrapper calls
-├── utils/
-│   ├── validation.ts      # Word validation check
-│   └── sound.ts           # Browser Web Audio API sound synthesizer
-├── types/
-│   └── index.ts           # TypeScript models
+│   ├── JoinRoom.tsx       # Room joining, including invite deep links
+│   ├── Lobby.tsx          # Real-time waiting area and invite sharing
+│   ├── Game.tsx           # Play board, incremental saving, live leaderboard
+│   ├── Results.tsx        # Winners, submission inspection, and rematch
+│   ├── Profile.tsx        # Username, avatar, blocked players, deletion
+│   ├── Statistics.tsx     # Career wins, games played, and match logs
+│   └── Legal.tsx          # Privacy Policy and Terms of Service
+├── hooks/                 # Auth, game, timer, dictionary, dialog, online status
+├── contexts/              # Auth, game/realtime, and notifications
+├── services/              # Supabase client and RPC/query wrappers
+├── utils/                 # Validation, notepad, time, errors, haptics, monitoring
+├── types/                 # TypeScript models
 └── styles/                # Structured stylesheets (Pure CSS)
+
+supabase/
+├── schema.sql             # Secure source of truth for fresh installs
+├── migrations/            # Ordered upgrade migrations
+├── seed/dictionary.sql    # Server-side word list
+├── functions/             # Edge Functions (account deletion)
+└── tests/                 # SQL flow/RLS security checks
 ```
 
 ---
 
-## 🏆 Key Features
+## 🔐 Security model
 
-- **Drift-Free Realtime Timers**: Timer syncs based on absolute server timestamps to accommodate page reloads and network lag.
-- **Micro-synthesized Audio**: Sound effects for countdown ticks, success chimes, buzzers, and victory melodies built purely using the Web Audio API (no assets to load).
-- **Rematch Flow**: Host can trigger a rematch which resets scores, clears submissions, and updates lobby views for all players instantly.
-- **Detailed Submissions Inspection**: Click on any player in the results screen to inspect their submissions breakdown in real time.
+- All score, room-state, result, chat, profile, and moderation mutations go through `SECURITY DEFINER` RPCs.
+- Direct writes to `players`, `rooms`, `submissions`, `game_results`, and `dictionary_words` are blocked by grants/RLS.
+- `profiles` no longer stores email addresses. Email remains in `auth.users`.
+- Chat supports reporting, blocking, profanity filtering, length limits, and per-user rate limits.
+- The anon key is safe to ship only because RLS and RPC authorization enforce the boundary. Keep it that way.
+- `.env` is untracked and ignored. If the repository was ever public with an environment file committed, purge it from history before making the repo public again:
+
+```bash
+# Requires git-filter-repo: https://github.com/newren/git-filter-repo
+git filter-repo --path .env --invert-paths
+git push --force-with-lease origin main
+```
+
+Force-pushing rewrites history. Coordinate with every collaborator first. Rotate the anon key from the Supabase dashboard if you want to invalidate old copies of it.
+
+---
+
+## 🏆 Key features
+
+- **Server-authoritative timer**: `start_game` sets `started_at = now()` and the client syncs against a server clock offset.
+- **Incremental word saving**: words are submitted as the player presses Enter or leaves the notepad, then retried at time-up.
+- **Dictionary enforcement**: the server rejects words that are not in `dictionary_words`.
+- **Host migration and stale-room finalization**: any active member can finish a room after the grace window, and a scheduled finalizer closes abandoned games.
+- **Rematch flow**: the host can reset scores, clear submissions, and return everyone to the lobby.
+- **Detailed submissions inspection**: click any player on the results screen to inspect their word breakdown.
+- **Accessible dialogs and chat**: focus traps, Escape handling, focus restore, and live regions.
+- **Installable PWA**: manifest, theme color, offline shell, and safe-area-aware layout.

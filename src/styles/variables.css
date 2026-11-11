@@ -31,7 +31,7 @@
   --color-info: #3b82f6;            /* Blue */
 
   /* Typography */
-  --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   
   /* Layout & Sizes */
   --border-radius-sm: 6px;

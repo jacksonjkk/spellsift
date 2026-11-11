@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Trophy, Swords, Hash } from 'lucide-react';
 import type { Profile } from '../../types';
+import { useDialog } from '../../hooks/useDialog';
 
 interface ProfileModalProps {
   profile: Profile;
@@ -8,33 +9,43 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ profile, onClose }) => {
+  const dialogRef = useDialog<HTMLDivElement>(true, onClose);
+
   return (
-    <div 
-      className="modal-backdrop animate-fade-in" 
+    <div
+      className="modal-backdrop animate-fade-in"
       onClick={onClose}
+      role="presentation"
       style={{
         position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.75)',
         backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 9999,
-        padding: '1rem'
+        padding: '1rem',
       }}
     >
-      <div 
-        className="card card-glow-secondary animate-float"
-        onClick={e => e.stopPropagation()}
+      <div
+        ref={dialogRef}
+        className="card card-glow-secondary animate-fade-in"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-modal-title"
         style={{
           width: '100%',
           maxWidth: '400px',
           position: 'relative',
-          padding: '2rem'
+          padding: '2rem',
         }}
       >
-        <button 
+        <button
           onClick={onClose}
           style={{
             position: 'absolute',
@@ -44,28 +55,34 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ profile, onClose }) 
             border: 'none',
             color: 'var(--color-text-muted)',
             cursor: 'pointer',
-            padding: '0.5rem'
+            padding: '0.5rem',
           }}
-          aria-label="Close modal"
+          aria-label="Close profile"
         >
           <X size={24} />
         </button>
 
         <div className="flex flex-col items-center gap-4">
-          <img 
-            src={profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.username}`}
+          <img
+            src={
+              profile.avatar_url ||
+              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(profile.username)}`
+            }
             alt={`${profile.username}'s avatar`}
-            style={{ 
-              width: '100px', 
-              height: '100px', 
-              borderRadius: '50%', 
+            loading="lazy"
+            style={{
+              width: '100px',
+              height: '100px',
+              borderRadius: '50%',
               border: '3px solid var(--color-accent)',
               boxShadow: 'var(--shadow-cyan-glow)',
-              objectFit: 'cover'
+              objectFit: 'cover',
             }}
           />
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>{profile.username}</h2>
-          
+          <h2 id="profile-modal-title" style={{ fontSize: '1.75rem', fontWeight: 800 }}>
+            {profile.username}
+          </h2>
+
           <div className="grid grid-cols-3 gap-4 w-full mt-4">
             <div className="text-center" style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px' }}>
               <Hash size={20} style={{ margin: '0 auto 0.5rem', color: 'var(--color-text-secondary)' }} />

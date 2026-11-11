@@ -32,7 +32,12 @@ export const PageWrapper: React.FC<PageWrapperProps> = ({ children, className = 
   }, []);
 
   return (
-    <main className={`container py-8 animate-fade-in ${className}`} style={{ flex: '1 0 auto' }}>
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className={`container py-8 animate-fade-in ${className}`}
+      style={{ flex: '1 0 auto', outline: 'none' }}
+    >
       {children}
     </main>
   );
